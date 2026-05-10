@@ -1,0 +1,10 @@
+README.md
+pyproject.toml
+setup.py
+nexa/__init__.py
+nexa/cli.py
+nexa.egg-info/PKG-INFO
+nexa.egg-info/SOURCES.txt
+nexa.egg-info/dependency_links.txt
+nexa.egg-info/entry_points.txt
+nexa.egg-info/top_level.txt
