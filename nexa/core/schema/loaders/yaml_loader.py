@@ -1,6 +1,10 @@
 import yaml
 import os
-from nexa.core.schema import ProjectSchema, AppSchema, ModelSchema, FieldSchema
+from nexa.core.schema.project import ProjectSchema
+from nexa.core.schema.app import AppSchema
+from nexa.core.schema.model import ModelSchema
+from nexa.core.schema.field import FieldSchema
+from nexa.core.schema.crud import CrudSchema, TableSchema, FormSchema
 
 class YamlLoader:
     def load(self, file_path):
@@ -46,12 +50,26 @@ class YamlLoader:
         model_name = data.get('name')
         fields_data = data.get('fields', [])
         
-        # Support crud: true (shorthand) or crud: { enabled: true }
-        raw_crud = data.get('crud', True)
+        # Parse nested CrudSchema
+        raw_crud = data.get('crud', {})
         if isinstance(raw_crud, bool):
-            crud = {"enabled": raw_crud}
+            crud = CrudSchema(enabled=raw_crud)
         else:
-            crud = raw_crud
+            table_data = raw_crud.get('table', {})
+            form_data = raw_crud.get('form', {})
+            
+            crud = CrudSchema(
+                enabled=raw_crud.get('enabled', True),
+                table=TableSchema(
+                    searchable=table_data.get('searchable', []),
+                    sortable=table_data.get('sortable', []),
+                    columns=table_data.get('columns', [])
+                ),
+                form=FormSchema(
+                    layout=form_data.get('layout', 'default'),
+                    fields=form_data.get('fields', [])
+                )
+            )
         
         fields = []
         for field_data in fields_data:

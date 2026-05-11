@@ -2,6 +2,9 @@ import os
 from nexa.core.generators.base import BaseGenerator
 from nexa.core.utils.strings import pascal_case
 
+from nexa.core.registry import nexa_generator, PRIORITY_CORE
+
+@nexa_generator("serializer", category="api", target="backend", priority=PRIORITY_CORE + 2, metadata={"description": "Generates DRF serializers"})
 class SerializerGenerator(BaseGenerator):
     template_path = 'api/serializer.tpl'
 

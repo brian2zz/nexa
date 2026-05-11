@@ -2,6 +2,9 @@ import os
 from nexa.core.generators.base import BaseGenerator
 from nexa.core.utils.strings import pascal_case, pluralize
 
+from nexa.core.registry import nexa_generator, PRIORITY_CORE
+
+@nexa_generator("service", category="api", target="frontend", priority=PRIORITY_CORE + 4, metadata={"description": "Generates Frontend services"})
 class ServiceGenerator(BaseGenerator):
     template_path = 'api/service.tpl'
 

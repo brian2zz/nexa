@@ -14,6 +14,13 @@ def test_pipeline():
     # 2. Run Pipeline
     pipeline = ProjectPipeline()
     
+    # Debug: List registered generators
+    from nexa.core.registry import generators
+    print("Registered Generators:")
+    for entry in generators.list_all():
+        print(f"  - {entry.category}.{entry.key} (prio: {entry.priority})")
+    print("")
+    
     try:
         pipeline.run(project)
     except SchemaValidationError as e:

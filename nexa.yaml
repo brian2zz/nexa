@@ -7,6 +7,13 @@ apps:
   - name: inventory
     models:
       - name: Product
+        crud:
+          enabled: true
+          table:
+            searchable: [title]
+            sortable: [price, stock]
+          form:
+            layout: default
         fields:
           - name: title
             type: string
@@ -18,6 +25,7 @@ apps:
             type: foreignkey
             to: inventory.Category
       - name: Category
+        crud: true
         fields:
           - name: name
             type: string

@@ -3,6 +3,9 @@ from nexa.core.generators.base import BaseGenerator
 from nexa.core.schema.translators.django import generate_django_fields
 from nexa.core.utils.strings import pascal_case
 
+from nexa.core.registry import nexa_generator, PRIORITY_CORE
+
+@nexa_generator("model", category="api", target="backend", priority=PRIORITY_CORE + 1, metadata={"description": "Generates Django models"})
 class ModelGenerator(BaseGenerator):
     template_path = 'api/model.tpl'
 

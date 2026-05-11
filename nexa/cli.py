@@ -8,6 +8,7 @@ from nexa.commands.build import handle as build_command
 from nexa.commands.makeapi import (
     handle as makeapi_command
 )
+from nexa.commands.generate import handle as generate_command
 
 import subprocess
 
@@ -38,6 +39,9 @@ def main():
     
     elif command == 'make:api':
         makeapi_command(args[1:])
+
+    elif command == 'generate':
+        generate_command(args[1:])
 
     else:
         subprocess.run([
