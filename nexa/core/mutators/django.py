@@ -230,9 +230,8 @@ def register_api(
     if register_block not in content:
 
         content = content.replace(
-            'urlpatterns = router.urls',
-            register_block
-            + '\nurlpatterns = router.urls'
+            'urlpatterns = [',
+            register_block + '\nurlpatterns = ['
         )
 
     with open(api_path, 'w', encoding='utf-8') as f:

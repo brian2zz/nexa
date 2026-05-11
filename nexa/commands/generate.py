@@ -55,15 +55,16 @@ class GenerateCommand(BaseCommand):
 
     def render_errors(self, errors):
         """
-        Structured error rendering for CLI.
+        Structured error rendering for CLI with high visibility.
         """
-        self.logger.error("Schema Validation Failed:")
-        print("====================================")
+        self.logger.error("!!! SCHEMA VALIDATION FAILED !!!")
+        print("\n" + "!" * 60)
         for error in errors:
-            print(f"  - [{error.code.upper()}] {error.message}")
+            print(f"  [ERROR] [{error.code.upper()}] {error.message}")
             if error.model:
-                print(f"    Location: App({error.app}), Model({error.model}), Field({error.field})")
-        print("====================================")
+                print(f"          > Location: App({error.app}) -> Model({error.model}) -> Field({error.field or 'Any'})")
+        print("!" * 60 + "\n")
+        self.logger.warning("Please fix the issues in your schema and re-run generation.")
 
 def handle(args):
     cmd = GenerateCommand(args)
