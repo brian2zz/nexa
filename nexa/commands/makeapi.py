@@ -1,21 +1,21 @@
 import os
 
-from nexa.core.filesystem import (
+from nexa.core.utils.filesystem import (
     load_template,
     render_template,
     write_file
 )
 
-from nexa.core.django import (
+from nexa.core.mutators.django import (
     register_api,
     register_imports
 )
 
-from nexa.core.fields import (
+from nexa.core.utils.fields import (
     generate_model_fields
 )
 
-from nexa.core.strings import pluralize
+from nexa.core.utils.strings import pluralize, pascal_case
 
 def handle(args):
 
@@ -33,19 +33,13 @@ def handle(args):
     fields = []
 
     for arg in args:
-
         if arg.startswith('--fields='):
-
-            raw_fields = arg.replace(
-                '--fields=',
-                ''
-            )
-
-            fields = raw_fields.split(',')
+            raw_fields = arg.replace('--fields=', '').strip('"').strip("'")
+            fields = [f.strip() for f in raw_fields.split(',')]
             
     model_fields = generate_model_fields(fields)
             
-    class_name = model_name.capitalize()
+    class_name = pascal_case(model_name)
     file_name = model_name.lower()
     route_name = pluralize(file_name)
 

@@ -1,13 +1,13 @@
 import os
 import subprocess
 
-from nexa.core.django import (
+from nexa.core.mutators.django import (
     register_nexa,
     patch_settings,
     patch_urls
 )
 
-from nexa.core.filesystem import (
+from nexa.core.utils.filesystem import (
     load_template,
     write_file
 )

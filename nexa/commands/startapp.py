@@ -1,11 +1,11 @@
 import os
-from nexa.core.filesystem import (
+from nexa.core.utils.filesystem import (
     load_template,
     render_template,
     write_file
 )
 
-from nexa.core.django import (
+from nexa.core.mutators.django import (
     register_app,
     register_urls,
     register_api_urls
