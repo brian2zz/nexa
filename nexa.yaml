@@ -1,0 +1,32 @@
+version: 1
+
+project:
+  name: inventory_system
+
+apps:
+  - name: inventory
+    models:
+      - name: Product
+        fields:
+          - name: title
+            type: string
+          - name: price
+            type: decimal
+          - name: stock
+            type: integer
+          - name: category
+            type: foreignkey
+            to: inventory.Category
+      - name: Category
+        fields:
+          - name: name
+            type: string
+
+  - name: warehouse
+    models:
+      - name: Warehouse
+        fields:
+          - name: name
+            type: string
+          - name: address
+            type: text

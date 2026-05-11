@@ -1,0 +1,1 @@
+from apps.warehouse.serializers.warehouse import WarehouseSerializer
