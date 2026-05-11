@@ -9,8 +9,10 @@ class ListPageGenerator(BaseGenerator):
 
     def build_context(self):
         self.context = {
+            'app_name': self.model_schema.app,
             'model_name': self.model_schema.name,
             'class_name': pascal_case(self.model_schema.name),
+            'file_name': self.model_schema.name.lower(),
             'plural_name': pluralize(self.model_schema.name),
             'fields': self.model_schema.fields,
             'searchable': self.model_schema.crud.table.searchable,

@@ -74,6 +74,7 @@ def discover_core():
     # Auto-scan core generators
     autodiscover(os.path.join(core_path, 'generators', 'api'), 'nexa.core.generators.api')
     autodiscover(os.path.join(core_path, 'generators', 'crud'), 'nexa.core.generators.crud')
+    autodiscover(os.path.join(core_path, 'generators', 'scaffold'), 'nexa.core.generators.scaffold')
     
     # Auto-scan core translators
     autodiscover(os.path.join(core_path, 'schema', 'translators'), 'nexa.core.schema.translators')

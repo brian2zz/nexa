@@ -1,7 +1,7 @@
 import os
 from nexa.core.generators.base import BaseGenerator
 from nexa.core.schema.translators.django import generate_django_fields
-from nexa.core.utils.strings import pascal_case
+from nexa.core.utils.strings import pascal_case, pluralize
 
 from nexa.core.registry import nexa_generator, PRIORITY_CORE
 
@@ -12,8 +12,10 @@ class ModelGenerator(BaseGenerator):
     def build_context(self):
         self.context = {
             'app_name': self.model_schema.app,
+            'model_name': self.model_schema.name,
             'class_name': pascal_case(self.model_schema.name),
             'file_name': self.model_schema.name.lower(),
+            'plural_name': pluralize(self.model_schema.name),
             'model_fields': generate_django_fields(self.model_schema.fields)
         }
 

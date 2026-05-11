@@ -9,6 +9,9 @@ from nexa.commands.makeapi import (
     handle as makeapi_command
 )
 from nexa.commands.generate import handle as generate_command
+from nexa.commands.doctor import handle as doctor_command
+from nexa.commands.sync import handle as sync_command
+from nexa.commands.inspect import handle as inspect_command
 
 import subprocess
 
@@ -42,6 +45,15 @@ def main():
 
     elif command == 'generate':
         generate_command(args[1:])
+
+    elif command == 'doctor':
+        doctor_command(args[1:])
+
+    elif command == 'sync':
+        sync_command(args[1:])
+    
+    elif command == 'inspect':
+        inspect_command(args[1:])
 
     else:
         subprocess.run([
