@@ -28,7 +28,7 @@ def register_app(app_name):
             "        'rest_framework.authentication.SessionAuthentication',\n"
             "    ],\n"
             "    'DEFAULT_PERMISSION_CLASSES': [\n"
-            "        'rest_framework.permissions.IsAuthenticated',\n"
+            "        'rest_framework.permissions.AllowAny',\n"
             "    ],\n"
             "}\n"
         )

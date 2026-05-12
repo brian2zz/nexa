@@ -13,7 +13,7 @@ export const use{{ class_name }}Store = defineStore('{{ model_name.lower() }}', 
       this.loading = true;
       try {
         const response = await service.list();
-        this.items = response.data;
+        this.items = Array.isArray(response.data) ? response.data : (response.data.results || []);
       } catch (err) {
         this.error = err.message;
       } finally {

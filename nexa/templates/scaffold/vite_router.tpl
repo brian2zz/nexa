@@ -11,11 +11,13 @@ const router = createRouter({
     },
     {
       path: '/admin-nexa',
-      redirect: '/'
+      name: 'admin_dashboard_alias',
+      component: () => import('../admin-nexa/pages/Dashboard.vue')
     },
     {
       path: '/nexa-admin',
-      redirect: '/'
+      name: 'admin_dashboard',
+      component: () => import('../admin-nexa/pages/Dashboard.vue')
     },
     // NEXA_ROUTES
   ]

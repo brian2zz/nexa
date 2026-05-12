@@ -17,7 +17,7 @@ class ListPageGenerator(BaseGenerator):
             'fields': self.model_schema.fields,
             'searchable': self.model_schema.crud.table.searchable,
             'sortable': self.model_schema.crud.table.sortable,
-            'columns': self.model_schema.crud.table.columns or [f.name for f in self.model_schema.fields[:5]]
+            'columns': self.model_schema.crud.table.columns or [f.name for f in self.model_schema.fields]
         }
 
     def get_target_path(self):

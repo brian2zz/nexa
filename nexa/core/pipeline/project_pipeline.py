@@ -49,12 +49,8 @@ class ProjectPipeline:
                 break
         
         if not main_app_name:
-            # Fallback: check if 'home' is in apps, else use first app
-            app_names = [a.name for a in project_schema.apps]
-            if 'home' in app_names:
-                main_app_name = 'home'
-            elif app_names:
-                main_app_name = app_names[0]
+            # Foundation app 'home' always acts as the master global gateway SPA by default
+            main_app_name = 'home'
 
         for app in project_schema.apps:
             self.logger.info(f"Processing App: {app.name}")
@@ -109,7 +105,7 @@ class ProjectPipeline:
         # Register home in Django
         from nexa.core.mutators.django import register_app, register_urls
         register_app('home')
-        register_urls('home')
+        register_urls('home', is_main=True)
 
         home_path = os.path.join(os.getcwd(), 'apps', 'home')
         middleware_path = os.path.join(home_path, 'middleware')
@@ -127,6 +123,11 @@ class ProjectPipeline:
         if not os.path.exists(activity_file):
             write_file(activity_file, "class ActivityLogMiddleware:\n    def __init__(self, get_response):\n        self.get_response = get_response\n\n    def __call__(self, request):\n        # Logic to log user activity\n        return self.get_response(request)\n")
 
+        # 3. Generate Frontend entry bridge for home app
+        from nexa.core.generators.scaffold.app_scaffolder import AppEntryGenerator
+        from types import SimpleNamespace
+        AppEntryGenerator(SimpleNamespace(name='home')).generate()
+
     def _ensure_project_structure(self):
         """
         Ensures global project files and folders exist.
@@ -136,7 +137,7 @@ class ProjectPipeline:
         for d in dirs:
             path = os.path.join(cwd, d)
             os.makedirs(path, exist_ok=True)
-            if d in ['config', 'apps']:
+            if d == 'apps':
                 init_file = os.path.join(path, '__init__.py')
                 if not os.path.exists(init_file):
                     open(init_file, 'w').close()
@@ -157,22 +158,22 @@ class ProjectPipeline:
                 patch_settings(cwd)
                 patch_urls(cwd)
                 
-                # Ensure root config files exist
-                req_path = os.path.join(cwd, 'requirements.txt')
-                if not os.path.exists(req_path):
-                    write_file(req_path, load_template('project/requirements.tpl'))
-                    
-                pkg_path = os.path.join(cwd, 'package.json')
-                if not os.path.exists(pkg_path):
-                    write_file(pkg_path, load_template('project/package.tpl'))
-                    
-                vite_path = os.path.join(cwd, 'vite.config.js')
-                if not os.path.exists(vite_path):
-                    write_file(vite_path, load_template('project/vite.tpl'))
-                    
                 self.logger.success("Auto-initialization complete.")
             except Exception as e:
                 self.logger.error(f"Failed to auto-initialize project: {e}")
+
+        # Ensure root config files exist unconditionally (Self-healing)
+        req_path = os.path.join(cwd, 'requirements.txt')
+        if not os.path.exists(req_path):
+            write_file(req_path, load_template('project/requirements.tpl'))
+            
+        pkg_path = os.path.join(cwd, 'package.json')
+        if not os.path.exists(pkg_path):
+            write_file(pkg_path, load_template('project/package.tpl'))
+            
+        vite_path = os.path.join(cwd, 'vite.config.js')
+        if not os.path.exists(vite_path):
+            write_file(vite_path, load_template('project/vite.tpl'))
 
         # 1. Ensure Global base.html exists
         base_html_path = os.path.join(cwd, 'templates', 'base.html')

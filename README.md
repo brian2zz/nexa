@@ -1,92 +1,94 @@
-# Nexa Framework 🚀
+# Nexa Framework Enterprise SaaS & ERP Engine 🚀
 
-**Nexa** adalah framework full-stack modern yang dirancang untuk mempercepat pengembangan aplikasi SaaS dan ERP menggunakan **Django** (Backend) dan **Vue.js 3** (Frontend).
+**Nexa** adalah framework *full-stack* mutakhir yang didesain untuk menyintesis seluruh arsitektur aplikasi berskala *Enterprise* (SaaS & ERP) dari satu sumber kebenaran (*Single Source of Truth*) menggunakan **Django REST Framework** (Backend) dan **Vue.js 3 / Composition API** (Frontend).
 
-Nexa menggabungkan kekuatan Django dalam manajemen data dan keamanan dengan fleksibilitas Vue.js dan kecepatan Vite untuk pengalaman pengembangan yang luar biasa.
+---
 
-## ✨ Fitur Utama
+## ✨ Inovasi & Fitur Unggulan Versi Terbaru
 
--   📄 **Schema-Driven Orchestration**: Bangun seluruh ekosistem aplikasi (Backend & Frontend) secara dinamis dari satu file deklaratif `nexa.yaml`.
--   🤖 **Smart Self-Healing**: Otomatis menginisialisasi struktur dasar Django jika project belum disiapkan saat menjalankan generator.
--   🛡️ **Atomic Auto-Rollback**: Mengembalikan kondisi folder/ruang kerja bersih seperti semula jika terjadi error di tengah proses generasi.
--   🏗️ **Project Scaffolding**: Membuat struktur proyek lengkap (Django + Vue + Vite) dalam hitungan detik.
--   🔄 **Integrated Dev Server**: Jalankan server Django dan Vite secara bersamaan dengan satu perintah.
--   📦 **Automated App Generation**: Membuat modul aplikasi baru yang terintegrasi penuh dengan router Vue, Pinia store, dan API service.
--   🛠️ **Smart API Scaffolding**: Generate Serializer, Viewsets, dan Frontend Service secara otomatis.
--   🚀 **Unified Build System**: Build aplikasi untuk produksi dengan optimasi aset otomatis.
--   🎨 **Modern Tech Stack**: Mendukung Vue 3, Pinia, Vite, Tailwind CSS, dan Bootstrap.
+### 📊 1. Ruang Kerja Database Klien Real-Time (*Inline Staged Spreadsheet*)
+- **Pemisahan Aksi Mouse Eksklusif**: Klik tunggal (*single click*) murni dioptimalkan untuk seleksi salin (*copy/block text*) tanpa interupsi, sementara klik ganda (*double click*) seketika menyulap sel tabel menjadi kotak masukan (*inline input box*).
+- **Client-Side Staged Batch Commits**: Menampung modifikasi pengguna di sisi peramban terlebih dahulu layaknya perangkat lunak *DBeaver* atau *DataGrip*.
+  - 🟢 **Baris Hijau (*Staged Add*)**: Baris penambahan baru muncul bercahaya di puncak tabel. Mendukung input *Primary Key* ID opsional dengan *fallback Auto-Increment* pangkalan data otomatis saat dikosongkan.
+  - 🟡 **Baris Kuning (*Staged Edit*)**: Menyorot baris yang nilainya dimodifikasi dengan kapabilitas **"↩ Reset"** instan.
+  - 🔴 **Baris Merah (*Staged Delete*)**: Menandai rekaman untuk dicoret/dihapus dengan kebebasan **"↩ Restore"** sebelum *commit* permanen.
+- **Master Global Commit Toolbar**: Panel kendali bersinar dengan indikator denyut (*pulse animation*) yang merangkum kuantitas baris operasi tertunda untuk dieksekusi secara serentak ke server.
 
-## 📥 Cara Install
+### 🔍 2. DBeaver-Style & Fuzzy Cross-Column Filtering
+- Antarmuka pencarian ganda canggih yang mendukung ekspresi kueri kondisional berbasis SQL (misal: `id = 53 and status = 'sukses'`) maupun pencarian teks buram (*fuzzy search*) serbaguna.
 
-Kamu bisa meng-install Nexa langsung dari GitHub menggunakan `pip`:
+### 🛡️ 3. Keamanan & Sinkronisasi Arsitektur Tingkat Tinggi
+- **DRF Pagination Bridge**: Pinia *store* dibekali logika *unboxing* cerdas ganda yang otomatis mengurai *array* murni maupun respons berformat `{ results: [...] }` bawaan Django REST Framework.
+- **CSRF Token Security Handshake**: Klien Axios dikonfigurasi secara absolut untuk menyelaraskan *cookie* `csrftoken` dengan *header* HTTP `X-CSRFToken` pada seluruh rute `POST, PUT, DELETE`.
+- **Absolute Path Alignment**: Seluruh rute layanan klien otomatis terhubung ke *prefix* hierarki pendaftaran URL pangkalan data `/api/v1/[app_name]/[route_name]/` guna menghilangkan pencegatan rute halaman SPA.
+- **SPA Deadlock Prevention**: Rute antarmuka *scaffolded* dikonversi sepenuhnya menjadi impor dinamis malas (*lazy dynamic imports*) dan rute bernama (*named routes*) untuk navigasi super mulus tanpa *reload*.
+
+---
+
+## 📥 Cara Instalasi
+
+Anda dapat memasang Nexa langsung melalui repositori GitHub menggunakan manajer paket `pip`:
 
 ```bash
 pip install git+https://github.com/brian2zz/nexa.git
 ```
 
-Setelah ter-install, kamu bisa memverifikasi instalasi dengan mengetik:
+Verifikasi instalasi dengan menjalankan:
 
 ```bash
-nexa
+nexa --help
 ```
 
-## 🚀 Panduan Cepat (Quick Start)
+---
 
-### 1. Membuat Proyek Baru
+## 🚀 Panduan Cepat (*Quick Start*)
+
+### 1. Inisialisasi Ruang Kerja Proyek
 ```bash
-nexa new nama_proyek
-cd nama_proyek
+nexa new nexa-enterprise
+cd nexa-enterprise
 ```
 
-### 2. Meng-install Dependensi
-```bash
-nexa install
-pip install -r requirements.txt
-```
-
-### 3. Menjalankan Environment Pengembangan
-```bash
-nexa run
-```
-Akses aplikasi kamu di `http://127.0.0.1:8000`.
-
-### 4. Membuat Aplikasi/Modul Baru
-```bash
-nexa startapp nama_modul
-```
-
-### 5. Membuat API Secara Otomatis
-```bash
-nexa make:api nama_modul NamaModel
-```
-
-### 6. Generasi Penuh via Skema (Schema-Driven)
+### 2. Membangun Seluruh Ekosistem via Skema (*Schema-Driven*)
+Siapkan berkas deklaratif Anda (misal: `nexa.yaml`), lalu jalankan sintesis mandiri:
 ```bash
 nexa generate nexa.yaml
 ```
-> **Catatan**: Mendukung flag `--backend`, `--frontend`, dan `--dry-run`. Dilengkapi fitur *Self-Healing* (otomatis buat project jika hilang) dan *Auto-Rollback* (revert folder jika gagal).
+> **Catatan**: Mesin Nexa dilengkapi fitur **Self-Healing** (otomatis membuat struktur dasar Django jika hilang) serta **Atomic Auto-Rollback** (mengembalikan kondisi direktori bersih semula jika terjadi anomali sintesis).
 
-## 📖 Dokumentasi Perintah
+### 3. Pemasangan Dependensi & Migrasi Basis Data
+```bash
+nexa install
+pip install -r requirements.txt
+python manage.py makemigrations
+python manage.py migrate
+```
 
-| Perintah | Deskripsi |
-| :--- | :--- |
-| `nexa new [name]` | Membuat proyek Nexa baru. |
-| `nexa generate [file.yaml]` | Mensintesis seluruh kode Backend & Frontend dari skema YAML. |
-| `nexa run` | Menjalankan Django server dan Vite dev server. |
-| `nexa startapp [name]` | Membuat modul aplikasi baru dengan struktur Vue. |
-| `nexa make:api [app] [model]` | Generate Serializer, Viewset, dan Frontend Service. |
-| `nexa build` | Membangun aset frontend dan mengumpulkan static files. |
-| `nexa install` | Menjalankan `npm install` di root proyek. |
-
-## 🛠️ Persyaratan Sistem
-
--   Python 3.8+
--   Node.js 16+ & npm
--   Django 4.0+
-
-## 🤝 Kontribusi
-
-Kontribusi selalu terbuka! Silakan fork repository ini dan kirimkan Pull Request.
+### 4. Menjalankan Server Pengembangan Terpadu
+```bash
+nexa run
+```
+Akses dasbor administrator pusat bergaya *glassmorphism* premium di alamat `http://127.0.0.1:8000`.
 
 ---
-Dibuat dengan ❤️ untuk pengembang Indonesia.
+
+## 📖 Referensi Cepat Perintah CLI
+
+| Perintah | Fungsi / Peran |
+| :--- | :--- |
+| `nexa new [name]` | Menciptakan direktori proyek ekosistem Nexa baru. |
+| `nexa generate [file.yaml]` | Mensintesis cetak biru *Backend* & *Frontend* secara menyeluruh. |
+| `nexa run` | Mengorkestrasi server Django dan Vite dev server serentak. |
+| `nexa startapp [name]` | Menyiapkan struktur fondasi modul bisnis baru. |
+| `nexa make:api [app] [model]` | Mensintesis *Serializer*, *ViewSet*, dan *Frontend Service*. |
+| `nexa build` | Membangun bundel produksi aset statis terpadu. |
+| `nexa install` | Mengeksekusi penyiapan modul Node.js di tingkat *root*. |
+
+---
+
+## 🤝 Kontribusi & Dukungan
+
+Nexa didesain untuk terus berkembang bersama komunitas pengembang *Enterprise*. Silakan *fork* repositori ini dan ajukan *Pull Request* inovatif Anda!
+
+---
+**Nexa Framework** — *Architected with absolute precision and premium aesthetics.* 💎
