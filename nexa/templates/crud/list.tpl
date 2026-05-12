@@ -52,7 +52,7 @@
 
 <script setup>
 import { onMounted } from 'vue';
-import { use{{ class_name }}Store } from '@/stores/{{ model_name.lower() }}Store';
+import { use{{ class_name }}Store } from '@/admin-nexa/stores/{{ model_name.lower() }}Store';
 
 const store = use{{ class_name }}Store();
 const { items } = store;

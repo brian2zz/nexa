@@ -22,6 +22,6 @@ class RouteGenerator(BaseGenerator):
             os.getcwd(), 
             'apps', 
             self.model_schema.app, 
-            'frontend', 'src', 'routes', 
+            'frontend', 'src', 'admin-nexa', 'routes', 
             f"{self.model_schema.name.lower()}Routes.js"
         )

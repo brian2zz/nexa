@@ -6,10 +6,13 @@ Nexa menggabungkan kekuatan Django dalam manajemen data dan keamanan dengan flek
 
 ## ✨ Fitur Utama
 
+-   📄 **Schema-Driven Orchestration**: Bangun seluruh ekosistem aplikasi (Backend & Frontend) secara dinamis dari satu file deklaratif `nexa.yaml`.
+-   🤖 **Smart Self-Healing**: Otomatis menginisialisasi struktur dasar Django jika project belum disiapkan saat menjalankan generator.
+-   🛡️ **Atomic Auto-Rollback**: Mengembalikan kondisi folder/ruang kerja bersih seperti semula jika terjadi error di tengah proses generasi.
 -   🏗️ **Project Scaffolding**: Membuat struktur proyek lengkap (Django + Vue + Vite) dalam hitungan detik.
 -   🔄 **Integrated Dev Server**: Jalankan server Django dan Vite secara bersamaan dengan satu perintah.
--   📦 **Automated App Generation**: Membuat modul aplikasi baru yang sudah terkonfigurasi dengan router, store, dan API service.
--   🛠️ **Smart API Scaffolding**: Generate Serializer, Viewsets, dan Frontend Service secara otomatis dari satu perintah.
+-   📦 **Automated App Generation**: Membuat modul aplikasi baru yang terintegrasi penuh dengan router Vue, Pinia store, dan API service.
+-   🛠️ **Smart API Scaffolding**: Generate Serializer, Viewsets, dan Frontend Service secara otomatis.
 -   🚀 **Unified Build System**: Build aplikasi untuk produksi dengan optimasi aset otomatis.
 -   🎨 **Modern Tech Stack**: Mendukung Vue 3, Pinia, Vite, Tailwind CSS, dan Bootstrap.
 
@@ -18,7 +21,7 @@ Nexa menggabungkan kekuatan Django dalam manajemen data dan keamanan dengan flek
 Kamu bisa meng-install Nexa langsung dari GitHub menggunakan `pip`:
 
 ```bash
-pip install git+https://github.com/USERNAME_KAMU/nexa.git
+pip install git+https://github.com/brian2zz/nexa.git
 ```
 
 Setelah ter-install, kamu bisa memverifikasi instalasi dengan mengetik:
@@ -57,11 +60,18 @@ nexa startapp nama_modul
 nexa make:api nama_modul NamaModel
 ```
 
+### 6. Generasi Penuh via Skema (Schema-Driven)
+```bash
+nexa generate nexa.yaml
+```
+> **Catatan**: Mendukung flag `--backend`, `--frontend`, dan `--dry-run`. Dilengkapi fitur *Self-Healing* (otomatis buat project jika hilang) dan *Auto-Rollback* (revert folder jika gagal).
+
 ## 📖 Dokumentasi Perintah
 
 | Perintah | Deskripsi |
 | :--- | :--- |
 | `nexa new [name]` | Membuat proyek Nexa baru. |
+| `nexa generate [file.yaml]` | Mensintesis seluruh kode Backend & Frontend dari skema YAML. |
 | `nexa run` | Menjalankan Django server dan Vite dev server. |
 | `nexa startapp [name]` | Membuat modul aplikasi baru dengan struktur Vue. |
 | `nexa make:api [app] [model]` | Generate Serializer, Viewset, dan Frontend Service. |

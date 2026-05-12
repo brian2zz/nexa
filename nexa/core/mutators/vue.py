@@ -15,7 +15,7 @@ def register_vue_route(app_name, model_name):
         content = f.read()
 
     route_file = f"{model_name.lower()}Routes"
-    import_line = f"import {route_file} from '../routes/{route_file}'\n"
+    import_line = f"import {route_file} from '../admin-nexa/routes/{route_file}'\n"
     
     # 1. Inject Import
     if import_line not in content:
@@ -56,7 +56,7 @@ def register_vue_nav(app_name, model_name):
         content = f.read()
 
     display_name = pascal_case(model_name)
-    route_path = f"/{pluralize(model_name.lower())}"
+    route_path = f"/nexa-admin/{pluralize(model_name.lower())}"
     
     nav_link = (
         f"        <router-link to=\"{route_path}\" class=\"p-6 bg-white rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow group\">\n"

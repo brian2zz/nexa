@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import service from '@/services/{{ model_name.lower() }}';
+import service from '@/admin-nexa/services/{{ model_name.lower() }}';
 
 export const use{{ class_name }}Store = defineStore('{{ model_name.lower() }}', {
   state: () => ({

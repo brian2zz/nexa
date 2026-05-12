@@ -40,7 +40,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { use{{ class_name }}Store } from '@/stores/{{ model_name.lower() }}Store';
+import { use{{ class_name }}Store } from '@/admin-nexa/stores/{{ model_name.lower() }}Store';
 
 const route = useRoute();
 const router = useRouter();

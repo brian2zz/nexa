@@ -132,9 +132,14 @@ class ProjectPipeline:
         Ensures global project files and folders exist.
         """
         cwd = os.getcwd()
-        dirs = ['config', 'templates', 'static', 'media', 'shared']
+        dirs = ['config', 'templates', 'static', 'media', 'shared', 'apps']
         for d in dirs:
-            os.makedirs(os.path.join(cwd, d), exist_ok=True)
+            path = os.path.join(cwd, d)
+            os.makedirs(path, exist_ok=True)
+            if d in ['config', 'apps']:
+                init_file = os.path.join(path, '__init__.py')
+                if not os.path.exists(init_file):
+                    open(init_file, 'w').close()
             
         from nexa.core.utils.filesystem import load_template, render_template, write_file
         import subprocess
@@ -194,6 +199,11 @@ class ProjectPipeline:
         from nexa.core.utils.filesystem import load_template, render_template, write_file
         
         # 1. Create Directories & __init__.py files
+        os.makedirs(base_path, exist_ok=True)
+        app_init = os.path.join(base_path, '__init__.py')
+        if not os.path.exists(app_init):
+            write_file(app_init, "")
+
         for subdir in subdirs:
             path = os.path.join(base_path, subdir)
             os.makedirs(path, exist_ok=True)

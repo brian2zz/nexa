@@ -6,16 +6,17 @@ Nexa beroperasi dengan prinsip **Single Source of Truth**. Seluruh infrastruktur
 ---
 
 ## 2. Execution Flow (The Lifecycle)
-Alur orkestrasi Nexa dibagi menjadi 5 tahap kritis:
+Alur orkestrasi Nexa dibagi menjadi 6 tahap kritis yang tangguh (*resilient*):
 
-1. **Loader (YAML to Objects)**: Mengonversi YAML mentah menjadi `ProjectSchema` yang memiliki tipe data kuat.
-2. **Validator (Integrity Check)**: Memastikan tidak ada relasi yang rusak (missing foreign keys).
-3. **Pipeline Orchestrator**: Mesin utama yang membagi tugas menjadi 3 level:
+1. **Pre-Flight Snapshot**: Menyimpan status ruang kerja file/direktori saat ini untuk kapabilitas *Atomic Rollback*.
+2. **Loader (YAML to Objects)**: Mengonversi YAML mentah menjadi `ProjectSchema` yang memiliki tipe data kuat.
+3. **Validator (Integrity Check)**: Memastikan tidak ada relasi yang rusak. Jika tidak valid, akan memicu otomatis *Rollback* mengembalikan ruang kerja bersih.
+4. **Pipeline Orchestrator**: Mesin utama yang membagi tugas dan memiliki fungsi **Self-Healing** (otomatis melakukan inisialisasi Django project jika direktori `config` hilang):
    - **Project Level**: Membangun fondasi global (Shared UI, Config).
    - **App Level**: Menyiapkan scaffolding aplikasi (Vite Entry points).
    - **Model Level**: Menjalankan generator spesifik untuk setiap entitas data.
-4. **Registry System (Discovery)**: Nexa secara otomatis menemukan generator menggunakan decorator `@nexa_generator`.
-5. **Generators (Code Synthesis)**: Menggunakan engine `.tpl` untuk mensintesis kode Django dan Vue 3.
+5. **Registry System (Discovery)**: Nexa secara otomatis menemukan generator menggunakan decorator `@nexa_generator`.
+6. **Generators (Code Synthesis)**: Menggunakan engine `.tpl` untuk mensintesis kode Django dan Vue 3. Jika gagal/exception, semua folder baru di-revert bersih.
 
 ---
 

@@ -25,6 +25,6 @@ class ListPageGenerator(BaseGenerator):
             os.getcwd(), 
             'apps', 
             self.model_schema.app, 
-            'frontend', 'src', 'pages', 
+            'frontend', 'src', 'admin-nexa', 'pages', 
             f"{pascal_case(self.model_schema.name)}List.vue"
         )

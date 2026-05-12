@@ -27,6 +27,7 @@ class ServiceGenerator(BaseGenerator):
             self.model_schema.app, 
             'frontend', 
             'src', 
+            'admin-nexa',
             'services', 
             f'{file_name}.js'
         )

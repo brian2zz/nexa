@@ -9,6 +9,14 @@ const router = createRouter({
       name: 'home',
       component: () => import('../pages/Home.vue')
     },
+    {
+      path: '/admin-nexa',
+      redirect: '/'
+    },
+    {
+      path: '/nexa-admin',
+      redirect: '/'
+    },
     // NEXA_ROUTES
   ]
 })

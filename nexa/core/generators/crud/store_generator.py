@@ -21,6 +21,6 @@ class StoreGenerator(BaseGenerator):
             os.getcwd(), 
             'apps', 
             self.model_schema.app, 
-            'frontend', 'src', 'stores', 
+            'frontend', 'src', 'admin-nexa', 'stores', 
             f"{self.model_schema.name.lower()}Store.js"
         )
