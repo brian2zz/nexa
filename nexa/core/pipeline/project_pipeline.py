@@ -137,7 +137,38 @@ class ProjectPipeline:
             os.makedirs(os.path.join(cwd, d), exist_ok=True)
             
         from nexa.core.utils.filesystem import load_template, render_template, write_file
+        import subprocess
         
+        # 0. Auto-initialize base Django project if settings.py is missing (Self-healing)
+        settings_path = os.path.join(cwd, 'config', 'settings.py')
+        if not os.path.exists(settings_path):
+            self.logger.info("Base project structure missing. Auto-initializing Django project...")
+            try:
+                subprocess.run(['django-admin', 'startproject', 'config', cwd], check=True)
+                
+                # Apply base settings patches
+                from nexa.core.mutators.django import register_nexa, patch_settings, patch_urls
+                register_nexa(cwd)
+                patch_settings(cwd)
+                patch_urls(cwd)
+                
+                # Ensure root config files exist
+                req_path = os.path.join(cwd, 'requirements.txt')
+                if not os.path.exists(req_path):
+                    write_file(req_path, load_template('project/requirements.tpl'))
+                    
+                pkg_path = os.path.join(cwd, 'package.json')
+                if not os.path.exists(pkg_path):
+                    write_file(pkg_path, load_template('project/package.tpl'))
+                    
+                vite_path = os.path.join(cwd, 'vite.config.js')
+                if not os.path.exists(vite_path):
+                    write_file(vite_path, load_template('project/vite.tpl'))
+                    
+                self.logger.success("Auto-initialization complete.")
+            except Exception as e:
+                self.logger.error(f"Failed to auto-initialize project: {e}")
+
         # 1. Ensure Global base.html exists
         base_html_path = os.path.join(cwd, 'templates', 'base.html')
         if not os.path.exists(base_html_path):

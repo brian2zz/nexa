@@ -1,5 +1,6 @@
 import os
 import time
+import shutil
 from nexa.core.schema.loaders.yaml_loader import YamlLoader
 from nexa.core.pipeline.project_pipeline import ProjectPipeline
 from nexa.core.validators.schema_validator import SchemaValidationError
@@ -33,6 +34,10 @@ class GenerateCommand(BaseCommand):
         if flags["dry_run"]:
             self.logger.warning("DRY RUN MODE: No files will be written.")
 
+        snapshot = None
+        if not flags["dry_run"]:
+            snapshot = self.take_snapshot()
+
         start_time = time.time()
 
         try:
@@ -50,8 +55,60 @@ class GenerateCommand(BaseCommand):
 
         except SchemaValidationError as e:
             self.render_errors(e.errors)
+            if snapshot is not None:
+                self.rollback_snapshot(snapshot)
         except Exception as e:
             self.logger.error(f"FATAL ERROR: {str(e)}")
+            if snapshot is not None:
+                self.rollback_snapshot(snapshot)
+
+    def take_snapshot(self):
+        snapshot = set()
+        root_dir = os.getcwd()
+        for dirpath, dirnames, filenames in os.walk(root_dir):
+            if any(p in dirpath for p in ['node_modules', '.git', '__pycache__']):
+                continue
+            snapshot.add(dirpath)
+            for f in filenames:
+                snapshot.add(os.path.join(dirpath, f))
+        return snapshot
+
+    def rollback_snapshot(self, snapshot):
+        root_dir = os.getcwd()
+        self.logger.warning("Rolling back newly created files and directories due to failure...")
+        
+        dirs_to_remove = []
+        files_to_remove = []
+        
+        for dirpath, dirnames, filenames in os.walk(root_dir):
+            if any(p in dirpath for p in ['node_modules', '.git', '__pycache__']):
+                continue
+            
+            if dirpath not in snapshot:
+                parent = os.path.dirname(dirpath)
+                if parent in snapshot:
+                    dirs_to_remove.append(dirpath)
+                dirnames.clear()
+                continue
+                
+            for f in filenames:
+                path = os.path.join(dirpath, f)
+                if path not in snapshot:
+                    files_to_remove.append(path)
+                    
+        for f in files_to_remove:
+            try:
+                os.remove(f)
+            except:
+                pass
+                
+        for d in dirs_to_remove:
+            try:
+                shutil.rmtree(d)
+            except:
+                pass
+                
+        self.logger.success("Rollback complete. Workspace restored to previous state.")
 
     def render_errors(self, errors):
         """
