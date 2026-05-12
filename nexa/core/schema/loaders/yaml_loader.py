@@ -38,13 +38,14 @@ class YamlLoader:
 
     def parse_app(self, data):
         app_name = data.get('name')
+        is_main = data.get('main', False)
         models_data = data.get('models', [])
         
         models = []
         for model_data in models_data:
             models.append(self.parse_model(app_name, model_data))
             
-        return AppSchema(name=app_name, models=models)
+        return AppSchema(name=app_name, models=models, main=is_main)
 
     def parse_model(self, app_name, data):
         model_name = data.get('name')
@@ -88,5 +89,6 @@ class YamlLoader:
             type=data.get('type'),
             required=data.get('required', True),
             to=data.get('to'),
-            on_delete=data.get('on_delete', 'CASCADE')
+            on_delete=data.get('on_delete', 'CASCADE'),
+            related_name=data.get('related_name') # FIXED: Add this line
         )

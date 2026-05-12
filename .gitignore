@@ -1,0 +1,48 @@
+# ==========================================
+# Python Package / Build artifacts
+# ==========================================
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+*.whl
+*.tar.gz
+
+# ==========================================
+# Virtual Environments
+# ==========================================
+venv/
+env/
+.venv/
+ENV/
+
+# ==========================================
+# Testing & Logs
+# ==========================================
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+
+# ==========================================
+# OS & IDEs
+# ==========================================
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# macOS
+.DS_Store
+
+# IDEs
+.vscode/
+.idea/
+*.sw?

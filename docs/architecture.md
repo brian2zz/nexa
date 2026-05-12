@@ -28,22 +28,28 @@ Struktur folder yang dihasilkan Nexa dirancang untuk skalabilitas SaaS:
 ├── shared/
 │   └── ui/                  # Shared UI Library (Alias: @ui)
 ├── apps/
+│   ├── home/                # Core SaaS Module (Middleware & Control Center)
 │   └── [app_name]/          # Independent Business Module
 │       ├── models/          # Django Models
 │       ├── serializers/     # DRF Serializers
 │       ├── views/           # Controllers
 │       ├── services/        # Backend Logic (Service Layer)
+│       ├── middleware/      # App-specific middleware
+│       ├── templates/       # Django-Vue Bridge Templates
 │       └── frontend/        # Vue 3 Frontend Root
-│           ├── index.html   # Multi-entry Vite Point
-│           └── src/
-│               ├── main.js  # App Initialization
-│               └── pages/   # CRUD Views
 └── nexa.yaml                # The Master Schema
 ```
 
 ---
 
-## 4. Technology Stack
+## 4. Multi-Tenant Ready (Hybrid Routing)
+Arsitektur Nexa mendukung **Dynamic Tenancy** secara out-of-the-box:
+- **Automatic Context**: Middleware di aplikasi `home` mendeteksi tenant dari URL tanpa perlu mengubah logika di aplikasi bisnis.
+- **Unified Codebase**: Kode yang sama menangani `/inventory/` (Internal) dan `/customer-1/inventory/` (SaaS).
+
+---
+
+## 5. Technology Stack
 - **Backend**: Python, Django, Django Rest Framework (DRF).
 - **Frontend**: Vue 3 (Composition API), Pinia, Vite.
 - **Orchestration**: Nexa Engine (Python).

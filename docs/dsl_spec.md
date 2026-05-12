@@ -12,16 +12,23 @@ Struktur utama `nexa.yaml`.
 | `project` | `string` | Nama unik proyek (Slug-style). |
 | `apps` | `list` | Daftar modul aplikasi dalam proyek. |
 
-### App Definition
-Setiap aplikasi didefinisikan sebagai modul independen.
-```yaml
-- name: accounting
-  models: [...]
-```
+---
+
+## 2. App Specification
+Definisi modul/aplikasi dalam proyek.
+
+| Attribute | Type | Description |
+| :--- | :--- | :--- |
+| `name` | `string` | Nama aplikasi (snake_case). |
+| `main` | `boolean` | Jika `true`, aplikasi ini akan menjadi dashboard utama (`/`). |
+| `models` | `list` | Daftar model di dalam aplikasi ini. |
+
+> [!TIP]
+> Jika tidak ada aplikasi yang ditandai `main: true`, Nexa secara otomatis akan memilih aplikasi pertama di daftar YAML sebagai entry point utama proyek.
 
 ---
 
-## 2. Model Schema Spec
+## 3. Model Schema Spec
 Mendefinisikan entitas data dan perilaku UI.
 
 | Key | Type | Description |
@@ -61,9 +68,32 @@ Tipe data yang didukung oleh Nexa Translator.
 | `manytomany` | `ManyToManyField` | `multi-select` |
 | `onetoone` | `OneToOneField` | `select` |
 
+### Relationship Options
+Untuk tipe relasi (`foreignkey`, `onetoone`, `manytomany`), Anda dapat menambahkan:
+*   **`to`**: Target Model (Format: `ModelName` atau `app.ModelName`).
+*   **`on_delete`**: Kebijakan penghapusan (`CASCADE`, `SET_NULL`, `PROTECT`). Default: `CASCADE`.
+    *   *Catatan: Nexa otomatis menambahkan `null=True` jika Anda memilih `SET_NULL`.*
+*   **`related_name`**: Nama unik untuk akses balik (reverse accessor) dari model target. 
+    *   *Wajib diisi jika ada lebih dari satu field yang merujuk ke model yang sama.*
+
 ---
 
-## 4. Generator Lifecycle
+## 4. Universal Dynamic Architecture (SaaS Ready)
+Nexa secara otomatis membangun fondasi yang mendukung Multi-Tenancy namun tetap fleksibel untuk aplikasi tunggal.
+
+### Hybrid Routing Pattern
+Setiap aplikasi yang di-generate mendukung dua pola URL sekaligus:
+1.  **Direct Path**: `/app-name/` (Untuk akses internal/admin).
+2.  **Tenant Path**: `/<tenant_slug>/app-name/` (Untuk isolasi data pelanggan/SaaS).
+
+### Core Foundation (`apps.home`)
+Nexa secara otomatis menyertakan aplikasi `home` sebagai pusat kontrol yang berisi:
+*   **Tenant Middleware**: Deteksi otomatis konteks bisnis dari URL.
+*   **Activity Middleware**: Audit trail otomatis untuk setiap aktivitas user.
+
+---
+
+## 5. Generator Lifecycle
 Urutan eksekusi (Priority System).
 
 1. **PRIORITY_CORE - 50** (`project.shared_ui`): Menyiapkan library UI global.

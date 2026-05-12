@@ -37,38 +37,44 @@ def register_app(app_name):
         f.write(content)
 
 
-def register_urls(app_name):
-
+def register_urls(app_name, is_main=False):
+    """
+    Registers both Web (SPA) and API routes in the global config/urls.py.
+    """
     urls_path = Path.cwd() / 'config' / 'urls.py'
+    
+    # 1. Ensure 'include' is imported
+    with open(urls_path, 'r', encoding='utf-8') as f:
+        content = f.read()
+    
+    if 'from django.urls import path, include' not in content:
+        content = content.replace('from django.urls import path', 'from django.urls import path, include')
+        with open(urls_path, 'w', encoding='utf-8') as f:
+            f.write(content)
 
+    # Re-read content after potential import fix
     with open(urls_path, 'r', encoding='utf-8') as f:
         content = f.read()
 
-    if app_name == 'home':
-        route = f"    path('', include('apps.{app_name}.urls.web')),\n"
-    else:
-        route = (
-            f"    path('{app_name}/', "
-            f"include('apps.{app_name}.urls.web')),\n"
-        )
+    # 2. Register Web Route (SPA)
+    if f"apps.{app_name}.urls.web" not in content:
+        if is_main:
+            web_route = f"    path('', include('apps.{app_name}.urls.web')),\n"
+        else:
+            web_route = (
+                f"    path('<str:tenant_slug>/{app_name}/', include('apps.{app_name}.urls.web')),\n"
+                f"    path('{app_name}/', include('apps.{app_name}.urls.web')),\n"
+            )
+        
+        if 'path(\'admin/\'' in content:
+            content = content.replace('path(\'admin/\'', web_route + '    path(\'admin/\'')
+        else:
+            content = content.replace('urlpatterns = [', 'urlpatterns = [\n' + web_route)
 
-    # Prevent duplicate route registration
-    if route in content:
-        return
-
-    # Ensure include imported
-    if 'from django.urls import path, include' not in content:
-
-        content = content.replace(
-            'from django.urls import path',
-            'from django.urls import path, include'
-        )
-
-    # Inject route into urlpatterns
-    content = content.replace(
-        'urlpatterns = [',
-        f'urlpatterns = [\n{route}'
-    )
+    # 3. Register API Route
+    if f"apps.{app_name}.urls.api" not in content:
+        api_route = f"    path('api/v1/{app_name}/', include('apps.{app_name}.urls.api')),\n"
+        content = content.replace('urlpatterns = [', 'urlpatterns = [\n' + api_route)
 
     with open(urls_path, 'w', encoding='utf-8') as f:
         f.write(content)
@@ -134,6 +140,18 @@ def patch_settings(project_path):
             "\n\nSTATICFILES_STORAGE = (\n"
             "    'whitenoise.storage.CompressedManifestStaticFilesStorage'\n"
             ")\n"
+        )
+
+    # Templates DIRS
+    if "'DIRS': []" in content:
+        content = content.replace("'DIRS': []", "'DIRS': [BASE_DIR / 'templates']")
+
+    # Internal IPs for debug context
+    if 'INTERNAL_IPS' not in content:
+        content += (
+            "\n\nINTERNAL_IPS = [\n"
+            "    '127.0.0.1',\n"
+            "]\n"
         )
 
     # Whitenoise middleware
@@ -238,39 +256,6 @@ def register_api(
 
         f.write(content)
 
-def register_api_urls(app_name):
-
-    urls_path = Path.cwd() / 'config' / 'urls.py'
-
-    with open(urls_path, 'r', encoding='utf-8') as f:
-
-        content = f.read()
-
-    route = (
-        f"    path(\n"
-        f"        'api/v1/{app_name}/',\n"
-        f"        include('apps.{app_name}.urls.api')\n"
-        f"    ),\n"
-    )
-
-    if route in content:
-        return
-
-    if 'from django.urls import path, include' not in content:
-
-        content = content.replace(
-            'from django.urls import path',
-            'from django.urls import path, include'
-        )
-
-    content = content.replace(
-        'urlpatterns = [',
-        f'urlpatterns = [\n{route}'
-    )
-
-    with open(urls_path, 'w', encoding='utf-8') as f:
-
-        f.write(content)
 
 def register_imports(
     app_name,

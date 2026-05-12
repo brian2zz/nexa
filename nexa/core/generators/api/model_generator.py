@@ -16,7 +16,7 @@ class ModelGenerator(BaseGenerator):
             'class_name': pascal_case(self.model_schema.name),
             'file_name': self.model_schema.name.lower(),
             'plural_name': pluralize(self.model_schema.name),
-            'model_fields': generate_django_fields(self.model_schema.fields)
+            'model_fields': generate_django_fields(self.model_schema.fields, app_name=self.model_schema.app)
         }
 
     def get_target_path(self):

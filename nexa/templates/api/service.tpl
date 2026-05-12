@@ -1,31 +1,19 @@
-import http from './http'
+import axios from 'axios';
 
-export function getAll() {
-
-  return http.get('/api/{{ route_name }}/')
-}
-
-export function getById(id) {
-
-  return http.get(`/api/{{ route_name }}/${id}/`)
-}
-
-export function create(data) {
-
-  return http.post('/api/{{ route_name }}/', data)
-}
-
-export function update(id, data) {
-
-  return http.put(
-    `/api/{{ route_name }}/${id}/`,
-    data
-  )
-}
-
-export function remove(id) {
-
-  return http.delete(
-    `/api/{{ route_name }}/${id}/`
-  )
-}
+export default {
+  list() {
+    return axios.get('/api/{{ route_name }}/');
+  },
+  get(id) {
+    return axios.get(`/api/{{ route_name }}/${id}/`);
+  },
+  create(data) {
+    return axios.post('/api/{{ route_name }}/', data);
+  },
+  update(id, data) {
+    return axios.put(`/api/{{ route_name }}/${id}/`, data);
+  },
+  delete(id) {
+    return axios.delete(`/api/{{ route_name }}/${id}/`);
+  }
+};

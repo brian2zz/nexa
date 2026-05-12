@@ -4,8 +4,10 @@ from nexa.core.utils.filesystem import load_template, render_template, write_fil
 class BaseGenerator:
     template_path = ""
 
-    def __init__(self, model_schema):
-        self.model_schema = model_schema
+    def __init__(self, schema=None):
+        self.schema = schema
+        # For backward compatibility
+        self.model_schema = schema
         self.context = {}
 
     def build_context(self):

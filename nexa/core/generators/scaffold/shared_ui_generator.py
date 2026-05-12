@@ -8,8 +8,8 @@ class SharedUiGenerator(BaseGenerator):
     Generates the shared UI library in the root directory.
     """
     def __init__(self, project_schema=None):
+        super().__init__(project_schema)
         self.project_schema = project_schema
-        self.context = {}
 
     def generate(self):
         shared_path = os.path.join(os.getcwd(), 'shared', 'ui')

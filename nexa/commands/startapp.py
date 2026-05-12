@@ -7,8 +7,7 @@ from nexa.core.utils.filesystem import (
 
 from nexa.core.mutators.django import (
     register_app,
-    register_urls,
-    register_api_urls
+    register_urls
 )
 
 def handle(args):
@@ -232,6 +231,5 @@ def handle(args):
         router_template
     )
 
-    register_api_urls(app_name)
 
     print('App created successfully')

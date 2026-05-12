@@ -1,8 +1,15 @@
+import os
 from nexa.core.schema.loaders.yaml_loader import YamlLoader
 from nexa.core.pipeline.project_pipeline import ProjectPipeline
 from nexa.core.validators.schema_validator import SchemaValidationError
 
 def test_pipeline():
+    # Target path
+    TARGET_DIR = r"h:\project code\tes_nexa"
+    os.chdir(TARGET_DIR)
+    
+    print(f"[*] Running Sandbox in: {os.getcwd()}")
+    
     # 1. Load Schema
     loader = YamlLoader()
     try:
@@ -23,6 +30,7 @@ def test_pipeline():
     
     try:
         pipeline.run(project)
+        print("\n[SUCCESS] Pipeline executed successfully!")
     except SchemaValidationError as e:
         print("\nPIPELINE FAILED: Validation Errors")
         for error in e.errors:

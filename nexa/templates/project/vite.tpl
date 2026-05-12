@@ -16,9 +16,36 @@ if (fs.existsSync(appsDir)) {
     }
   })
 }
+// Custom resolver plugin to support multi-app @/ aliases dynamically
+const multiAppAliasResolver = () => {
+  return {
+    name: 'nexa-multi-app-alias',
+    resolveId(source, importer) {
+      if (source.startsWith('@/') && importer) {
+        // Find the base src directory of the importing app
+        const match = importer.match(/(.*\/apps\/[^/]+\/frontend\/src\/)/);
+        if (match) {
+          const targetPath = resolve(match[1], source.slice(2));
+          if (fs.existsSync(targetPath)) {
+            return targetPath;
+          }
+          // Coba tambahkan ekstensi standar jika tidak dituliskan
+          const extensions = ['.js', '.vue', '.json'];
+          for (const ext of extensions) {
+            if (fs.existsSync(targetPath + ext)) {
+              return targetPath + ext;
+            }
+          }
+          return targetPath;
+        }
+      }
+      return null;
+    }
+  }
+}
 
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [vue(), multiAppAliasResolver()],
   
   server: {
     port: 5173,
