@@ -1,6 +1,6 @@
 # Nexa Framework Enterprise SaaS & ERP Engine 🚀
 
-**Nexa** adalah framework *full-stack* mutakhir yang didesain untuk menyintesis seluruh arsitektur aplikasi berskala *Enterprise* (SaaS & ERP) dari satu sumber kebenaran (*Single Source of Truth*) menggunakan **Django REST Framework** (Backend) dan **Vue.js 3 / Composition API** (Frontend).
+**Nexa** adalah framework *full-stack & cross-platform* mutakhir yang didesain untuk menyintesis seluruh arsitektur aplikasi berskala *Enterprise* (SaaS & ERP) dari satu sumber kebenaran (*Single Source of Truth*) menggunakan **Django REST Framework** (Backend), **Vue.js 3 / Composition API** (Web Frontend), serta **Flutter Clean Architecture & Riverpod** (Mobile Frontend).
 
 ---
 
@@ -22,6 +22,16 @@
 - **CSRF Token Security Handshake**: Klien Axios dikonfigurasi secara absolut untuk menyelaraskan *cookie* `csrftoken` dengan *header* HTTP `X-CSRFToken` pada seluruh rute `POST, PUT, DELETE`.
 - **Absolute Path Alignment**: Seluruh rute layanan klien otomatis terhubung ke *prefix* hierarki pendaftaran URL pangkalan data `/api/v1/[app_name]/[route_name]/` guna menghilangkan pencegatan rute halaman SPA.
 - **SPA Deadlock Prevention**: Rute antarmuka *scaffolded* dikonversi sepenuhnya menjadi impor dinamis malas (*lazy dynamic imports*) dan rute bernama (*named routes*) untuk navigasi super mulus tanpa *reload*.
+
+### 📱 4. Orkestrasi Mobile Seluler Terpadu (Nexa Flutter Engine)
+- **Clean Architecture & DDD Scaffolding**: Menghasilkan boilerplate proyek seluler modular yang kokoh dengan pemisahan lapisan yang disiplin: `presentation`, `application` (Riverpod State Management), `data/models`, dan `data/repository`.
+- **Nexa Interactive Keyboard Runner**: Konsol eksekusi interaktif `nexa flutter run` yang menangani interaksi satu-karakter secara real-time:
+  - 🟢 **`c`**: Otomatis mematikan aplikasi, menjalankan `flutter clean` + `flutter pub get`, dan menyalakannya kembali secara dinamis.
+  - 🟢 **`s`**: Memicu Hot Restart yang membersihkan dan memuat ulang seluruh state manajemen **Riverpod ProviderScope** instan.
+  - 🟢 **`p`**: Mengaktifkan atau menonaktifkan *Performance Overlay* pada layar pengujian.
+  - 🟢 **`e`**: Memuat ulang konfigurasi berkas `.env` dan memicu restart cepat.
+- **Console Network Monitor (No DevTools)**: Logs HTTP dinamis dari Axios/Dio Interceptor (`GET /api/user -> 200 (120ms)`) dicetak penuh warna secara real-time langsung di terminal tanpa repot membuka Chrome DevTools.
+- **JSON-to-Dart AI Schema Generation (`gen-model`)**: Cukup arahkan ke file JSON, Nexa akan mensintesis Dart Model null-safe lengkap dengan serialisasi `fromJson/toJson` serta proteksi *float-double casting* otomatis.
 
 ---
 
@@ -45,14 +55,14 @@ nexa --help
 
 ### 1. Inisialisasi Ruang Kerja Proyek
 ```bash
-nexa new nexa-enterprise
+nexa django new nexa-enterprise
 cd nexa-enterprise
 ```
 
 ### 2. Membangun Seluruh Ekosistem via Skema (*Schema-Driven*)
 Siapkan berkas deklaratif Anda (misal: `nexa.yaml`), lalu jalankan sintesis mandiri:
 ```bash
-nexa generate nexa.yaml
+nexa django generate nexa.yaml
 ```
 > **Catatan**: Mesin Nexa dilengkapi fitur **Self-Healing** (otomatis membuat struktur dasar Django jika hilang) serta **Atomic Auto-Rollback** (mengembalikan kondisi direktori bersih semula jika terjadi anomali sintesis).
 
@@ -74,15 +84,32 @@ Akses dasbor administrator pusat bergaya *glassmorphism* premium di alamat `http
 
 ## 📖 Referensi Cepat Perintah CLI
 
+Nexa CLI memisahkan ekosistem perintah secara rapi di bawah kendali `django` dan `flutter`:
+
+### 🗄️ Grup Perintah Django REST & Vue.js 3 (`nexa django <command>`)
+
 | Perintah | Fungsi / Peran |
 | :--- | :--- |
-| `nexa new [name]` | Menciptakan direktori proyek ekosistem Nexa baru. |
-| `nexa generate [file.yaml]` | Mensintesis cetak biru *Backend* & *Frontend* secara menyeluruh. |
-| `nexa run` | Mengorkestrasi server Django dan Vite dev server serentak. |
-| `nexa startapp [name]` | Menyiapkan struktur fondasi modul bisnis baru. |
-| `nexa make:api [app] [model]` | Mensintesis *Serializer*, *ViewSet*, dan *Frontend Service*. |
-| `nexa build` | Membangun bundel produksi aset statis terpadu. |
-| `nexa install` | Mengeksekusi penyiapan modul Node.js di tingkat *root*. |
+| `nexa django new [name]` | Menciptakan direktori proyek ekosistem Nexa baru. |
+| `nexa django generate [file.yaml]` | Mensintesis cetak biru *Backend* & *Frontend* secara menyeluruh. |
+| `nexa django run` | Mengorkestrasi server Django dan Vite dev server serentak. |
+| `nexa django startapp [name]` | Menyiapkan struktur fondasi modul bisnis baru. |
+| `nexa django make:api [app] [model]` | Mensintesis *Serializer*, *ViewSet*, dan *Frontend Service*. |
+| `nexa django build` | Membangun bundel produksi aset statis terpadu. |
+| `nexa django install` | Mengeksekusi penyiapan modul Node.js di tingkat *root*. |
+| `nexa django doctor` | Mendiagnosis kesehatan environment backend Django & Node.js. |
+
+### 📱 Grup Perintah Flutter & Mobile (`nexa flutter <command>`)
+
+| Perintah | Fungsi / Peran |
+| :--- | :--- |
+| `nexa flutter new [name]` | Menginisialisasi proyek Flutter Clean Architecture & Riverpod baru. |
+| `nexa flutter create-module [name]` | Mensintesis modul fitur baru dengan auto-routing GoRouter. |
+| `nexa flutter gen-model [json_file]` | Mengubah berkas JSON menjadi Dart Class Model null-safe secara instan. |
+| `nexa flutter doctor` | Mendiagnosis kesehatan environment SDK Flutter, Dart, & proyek. |
+| `nexa flutter run [args]` | Menjalankan aplikasi secara interaktif dengan shortkey `c`, `s`, `p`, `e` & Network Logs. |
+| `nexa flutter build [args]` | Membangun rilis produksi (APK, AppBundle, dll.) dengan dukungan penuh variasi flag. |
+| `nexa flutter [any_subcommand]` | *Auto-Fallback* cerdas, meneruskan perintah apa saja langsung ke native Flutter CLI. |
 
 ---
 

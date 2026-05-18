@@ -1,7 +1,7 @@
 # Nexa Framework Enterprise Architecture: The Full-Stack SaaS Engine
 
 ## 1. Core Philosophy: Schema-Driven Orchestration
-Nexa beroperasi dengan prinsip **Single Source of Truth**. Seluruh infrastruktur aplikasi tingkat *Enterprise* (Backend & Frontend) didefinisikan secara komprehensif melalui satu file deklaratif: `nexa.yaml`.
+Nexa beroperasi dengan prinsip **Single Source of Truth**. Seluruh infrastruktur aplikasi tingkat *Enterprise*—mencakup **Backend (Django REST)**, **Web Frontend (Vue 3 SPA)**, dan **Mobile Frontend (Flutter Clean Architecture)**—didefinisikan dan disinkronkan secara komprehensif melalui skema deklaratif berkas `nexa.yaml` maupun utilitas CLI modular Nexa.
 
 ---
 
@@ -60,5 +60,31 @@ Arsitektur Nexa mendukung **Dynamic Tenancy** secara out-of-the-box:
 
 ## 6. Technology Stack
 - **Backend**: Python, Django, Django REST Framework (DRF) dengan *AllowAny* kalibrasi *scaffolding*.
-- **Frontend**: Vue 3 (Composition API), Pinia, Vite.
+- **Web Frontend**: Vue 3 (Composition API), Pinia, Vite.
+- **Mobile Frontend**: Dart, Flutter SDK, Riverpod State Management, GoRouter, Dio.
 - **Orchestration**: Nexa Engine (Python).
+
+---
+
+## 7. Mobile Architecture: Clean Architecture & DDD
+
+Aplikasi seluler yang dihasilkan oleh mesin **Nexa Flutter Engine** menggunakan struktur arsitektur bersih (*Clean Architecture*) terstandarisasi yang sangat modular berbasis Domain-Driven Design (DDD). Setiap modul bisnis di bawah `lib/modules/` dipisahkan menjadi beberapa lapisan pelindung terisolasi:
+
+```text
+lib/modules/[module_name]/
+├── presentation/
+│   ├── routes.dart          # Rute GoRouter modular yang terinjeksi otomatis ke router pusat
+│   └── [module]_page.dart   # UI menggunakan Riverpod ConsumerWidget untuk responsivitas state
+├── application/
+│   └── [module]_provider.dart # State Management menggunakan Riverpod StateNotifier & State class
+└── data/
+    ├── models/
+    │   └── [module]_model.dart # Dart Model dengan null-safety & konversi JSON cerdas
+    └── repository/
+        └── [module]_repository.dart # Komunikasi data terisolasi menggunakan HttpService (Dio-based)
+```
+
+### 🛠️ Integrasi Alur Sinkronisasi & Metaprogramming Rute
+* **Dynamic Route Injection**: Ketika modul seluler baru dibuat via CLI, generator Nexa akan membedah berkas `lib/core/router/app_router.dart`, mendeteksi jangkar komentar `// [NEXA_ROUTE_IMPORTS]` serta `// [NEXA_ROUTES_ARRAY]`, lalu **menginjeksi rute modul baru secara dinamis** tanpa campur tangan manual.
+* **Auto-Fallback Engine**: Semua perintah CLI native Flutter yang dijalankan melalui `nexa flutter` (seperti `run`, `build`, `clean`) akan secara otomatis dialirkan langsung ke native Flutter SDK dengan fungsionalitas monitoring konsol interaktif.
+
