@@ -13,7 +13,9 @@ register = template.Library()
 @register.simple_tag
 def nexa_assets(app_name):
 
-    app_name = str(app_name)
+    # SafeString jika di-str() akan tetap menjadi SafeString.
+    # Kita harus memaksanya menjadi string murni menggunakan f-string.
+    app_name = f"{app_name}"
     base_dir = str(settings.BASE_DIR)
 
     # Development
