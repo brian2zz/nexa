@@ -686,9 +686,14 @@ class FlutterNewCommand(BaseCommand):
         }
 
         for rel_path, content in files_to_write.items():
-            formatted_content = content.format(
-                package_name=project_name,
-                project_name=project_name.capitalize()
+            formatted_content = content.replace(
+                "{package_name}", project_name
+            ).replace(
+                "{project_name}", project_name.capitalize()
+            ).replace(
+                "{{", "{"
+            ).replace(
+                "}}", "}"
             )
             full_path = os.path.join(project_dir, rel_path)
             with open(full_path, "w") as f:
