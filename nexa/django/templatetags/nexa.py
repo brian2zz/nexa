@@ -6,9 +6,7 @@ from django.conf import settings
 from django.templatetags.static import static
 from django.utils.safestring import mark_safe
 
-
 register = template.Library()
-
 
 @register.simple_tag
 def nexa_assets(app_name):
@@ -26,7 +24,7 @@ def nexa_assets(app_name):
             '''
         )
 
-    # Production
+    # Production: Baca manifest.json di root dist folder
     manifest_path = Path(base_dir, "dist", ".vite", "manifest.json")
 
     if not manifest_path.exists():
@@ -35,6 +33,7 @@ def nexa_assets(app_name):
     with open(manifest_path, 'r') as f:
         manifest = json.load(f)
 
+    # Sesuaikan kunci pencarian dengan hasil Vite yang build semua app jadi satu
     entry_key = f"apps/{app_name}/frontend/index.html"
     entry = manifest.get(entry_key)
 
