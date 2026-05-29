@@ -13,6 +13,8 @@ register = template.Library()
 @register.simple_tag
 def nexa_assets(app_name):
 
+    app_name = str(app_name)
+
     # Development
     if settings.DEBUG:
 
@@ -25,14 +27,14 @@ def nexa_assets(app_name):
         )
 
     # Production
-    manifest_path = (
-        Path(settings.BASE_DIR)
-        / 'apps'
-        / str(app_name)
-        / 'frontend'
-        / 'dist'
-        / '.vite'
-        / 'manifest.json'
+    manifest_path = Path(
+        settings.BASE_DIR,
+        "apps",
+        app_name,
+        "frontend",
+        "dist",
+        ".vite",
+        "manifest.json",
     )
 
     if not manifest_path.exists():
