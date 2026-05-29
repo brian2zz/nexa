@@ -14,6 +14,7 @@ register = template.Library()
 def nexa_assets(app_name):
 
     app_name = str(app_name)
+    base_dir = str(settings.BASE_DIR)
 
     # Development
     if settings.DEBUG:
@@ -28,7 +29,7 @@ def nexa_assets(app_name):
 
     # Production
     manifest_path = Path(
-        settings.BASE_DIR,
+        base_dir,
         "apps",
         app_name,
         "frontend",
