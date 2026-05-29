@@ -729,7 +729,7 @@ class FlutterNewCommand(BaseCommand):
                     "  dio: ^5.4.0\n",
                     "  shared_preferences: ^2.2.0\n",
                     "  intl: ^0.19.0\n",
-                    "  nb_utils: ^10.0.0\n",
+                    "  nb_utils: ^7.3.4\n",
                     "  lottie: ^3.1.0\n",
                     "  geolocator: ^12.0.0\n",
                     "  geocoding: ^3.0.0\n",
