@@ -1,6 +1,7 @@
 import sys
 import subprocess
 import importlib
+import os
 
 def main():
     args = sys.argv[1:]
@@ -90,7 +91,7 @@ def main():
                 'flutter',
                 subcommand,
                 *sub_args
-            ])
+            ], shell=(os.name == 'nt'))
             
     elif command in built_in_commands:
         # Backward compatibility dengan petunjuk (hint)

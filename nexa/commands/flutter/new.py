@@ -632,7 +632,7 @@ class FlutterNewCommand(BaseCommand):
                 "--org", "com.nexa",
                 "--platforms", "android,ios",
                 project_name
-            ], check=True)
+            ], check=True, shell=(os.name == 'nt'))
         except Exception as e:
             self.logger.error(f"Failed to execute flutter create: {e}")
             return

@@ -31,7 +31,7 @@ class FlutterDoctorCommand(BaseCommand):
 
     def check_flutter(self):
         try:
-            out = subprocess.check_output(["flutter", "--version"], stderr=subprocess.STDOUT).decode().strip()
+            out = subprocess.check_output(["flutter", "--version"], stderr=subprocess.STDOUT, shell=(os.name == 'nt')).decode().strip()
             # Extract first line for clean version info
             first_line = out.split('\n')[0]
             return True, first_line
@@ -40,7 +40,7 @@ class FlutterDoctorCommand(BaseCommand):
 
     def check_dart(self):
         try:
-            out = subprocess.check_output(["dart", "--version"], stderr=subprocess.STDOUT).decode().strip()
+            out = subprocess.check_output(["dart", "--version"], stderr=subprocess.STDOUT, shell=(os.name == 'nt')).decode().strip()
             return True, out
         except Exception:
             return False, "Dart SDK is not found in PATH."
