@@ -28,7 +28,7 @@ def nexa_assets(app_name):
     manifest_path = (
         Path(settings.BASE_DIR)
         / 'apps'
-        / app_name
+        / str(app_name)
         / 'frontend'
         / 'dist'
         / '.vite'
