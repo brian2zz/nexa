@@ -13,12 +13,11 @@ register = template.Library()
 @register.simple_tag
 def nexa_assets(app_name):
 
-    app_name = f"{app_name}"
-    base_dir = f"{settings.BASE_DIR}"
+    app_name = str(app_name.encode("utf-8"), "utf-8")
+    base_dir = str(settings.BASE_DIR)
 
     # Development
     if settings.DEBUG:
-
         return mark_safe(
             f'''
             <script type="module"
@@ -28,28 +27,18 @@ def nexa_assets(app_name):
         )
 
     # Production
-    manifest_path = Path(
-        base_dir,
-        "apps",
-        app_name,
-        "frontend",
-        "dist",
-        ".vite",
-        "manifest.json",
-    )
+    manifest_path = Path(base_dir, "dist", ".vite", "manifest.json")
 
     if not manifest_path.exists():
-
         return ''
 
     with open(manifest_path, 'r') as f:
-
         manifest = json.load(f)
 
-    entry = manifest.get('index.html')
+    entry_key = f"apps/{app_name}/frontend/index.html"
+    entry = manifest.get(entry_key)
 
     if not entry:
-
         return ''
 
     js_file = entry.get('file')
@@ -59,14 +48,13 @@ def nexa_assets(app_name):
 
     # CSS
     for css in css_files:
-
         tags.append(
-            f'<link rel="stylesheet" href="{static(f"{app_name}/{Path(css).name}")}">'
+            f'<link rel="stylesheet" href="{static(css)}">'
         )
 
     # JS
     tags.append(
-        f'<script type="module" src="{static(f"{app_name}/{Path(js_file).name}")}"></script>'
+        f'<script type="module" src="{static(js_file)}"></script>'
     )
 
     return mark_safe('\n'.join(tags))

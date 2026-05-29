@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='nexa-framework',
-    version='0.1.8',
+    version='0.1.9',
     author='Brian',
     description='A full-stack framework for Django and Vue.js applications',
     long_description=open('README.md', encoding='utf-8').read() if os.path.exists('README.md') else '',
