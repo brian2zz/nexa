@@ -18,9 +18,8 @@ def nexa_assets(app_name):
     if settings.DEBUG:
         return mark_safe(
             f'''
-            <script type="module"
-                    src="http://localhost:5173/apps/{app_name}/frontend/src/main.js">
-            </script>
+            <script type="module" src="http://localhost:5173/static/@vite/client"></script>
+            <script type="module" src="http://localhost:5173/static/apps/{app_name}/frontend/src/main.js"></script>
             '''
         )
 
