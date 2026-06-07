@@ -93,6 +93,13 @@ def main():
                 subcommand,
                 *sub_args
             ], shell=(os.name == 'nt'))
+    elif command == 'update':
+        print("[INFO] Mengunduh dan memperbarui Nexa Framework dari GitHub...")
+        subprocess.run([
+            sys.executable, '-m', 'pip', 'install', '--upgrade', 'git+https://github.com/brian2zz/nexa.git'
+        ])
+        print("✅ Nexa berhasil diperbarui ke versi terbaru!")
+        return
             
     elif command in built_in_commands or command in built_in_flutter_commands:
         options = []
