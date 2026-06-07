@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexa administration</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        django: '#417690',
+                        djangolight: '#79aec8',
+                        djangobg: '#f8f8f8',
+                        djangotext: '#333333'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background-color: #f8f8f8; }
+        .django-header { background-color: #417690; color: #ffc; }
+        .django-header h1 { color: #f5dd5d; font-weight: 300; }
+        .django-module-header { background-color: #79aec8; color: white; padding: 8px; font-weight: bold; font-size: 14px; text-transform: uppercase; }
+        .django-table th { border-bottom: 1px solid #ccc; text-align: left; padding: 8px; background-color: #f8f8f8; font-weight: bold; color: #666; font-size: 13px; }
+        .django-table td { border-bottom: 1px solid #eee; padding: 8px; font-size: 13px; color: #333; }
+        .django-table tr:hover { background-color: #f5f5f5; }
+        .django-link { color: #447e9b; text-decoration: none; font-weight: bold; }
+        .django-link:hover { color: #036; text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div id="app" class="min-h-screen flex flex-col">
+        <!-- Header -->
+        <div class="django-header p-4 flex justify-between items-center shadow-md">
+            <h1 class="text-2xl cursor-pointer" @click="selectedModel = null">Nexa administration</h1>
+            <div class="text-sm">
+                WELCOME, <strong class="uppercase">ADMIN</strong>. / <a href="/" class="hover:underline text-white">VIEW SITE</a>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="flex-1 flex container mx-auto mt-6 px-4">
+            <!-- Sidebar / App List (Home) -->
+            <div v-if="!selectedModel" class="w-full md:w-2/3 shadow-sm bg-white border border-gray-200">
+                <div v-if="loading" class="p-8 text-center text-gray-500">Scanning Database Schema...</div>
+                
+                <div v-else v-for="(models, appName) in groupedSchema" :key="appName" class="mb-6">
+                    <div class="django-module-header">{{ appName }}</div>
+                    <table class="w-full django-table">
+                        <tbody>
+                            <tr v-for="model in models" :key="model.class">
+                                <td class="w-3/4"><a href="#" @click.prevent="openModel(model)" class="django-link">{{ model.model }}s</a></td>
+                                <td class="text-right"><a href="#" class="django-link" style="color: #999; font-weight: normal;">+ Add</a></td>
+                                <td class="text-right"><a href="#" @click.prevent="openModel(model)" class="django-link" style="color: #999; font-weight: normal;">Change</a></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div v-if="!selectedModel" class="hidden md:block w-1/3 pl-8">
+                <div class="bg-white border border-gray-200 p-4 shadow-sm">
+                    <h3 class="font-bold text-gray-700 mb-2 uppercase text-sm border-b pb-2">Recent actions</h3>
+                    <p class="text-xs text-gray-500 italic mt-2">My actions</p>
+                    <p class="text-xs text-gray-400 mt-2">No recent actions available.</p>
+                </div>
+            </div>
+
+            <!-- Model Data View -->
+            <div v-if="selectedModel" class="w-full">
+                <!-- Breadcrumb -->
+                <div class="mb-4 text-sm text-gray-600 bg-white p-2 border border-gray-200 shadow-sm flex items-center">
+                    <a href="#" @click.prevent="selectedModel = null" class="django-link">Home</a>
+                    <span class="mx-2">›</span>
+                    <span>{{ selectedModel.app }}</span>
+                    <span class="mx-2">›</span>
+                    <span class="text-gray-400">{{ selectedModel.model }}s</span>
+                </div>
+
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold text-gray-700">Select {{ selectedModel.model.toLowerCase() }} to change</h2>
+                    <button class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-1 px-4 rounded shadow">
+                        ADD {{ selectedModel.model.toUpperCase() }}
+                    </button>
+                </div>
+
+                <div class="shadow-sm bg-white border border-gray-200 overflow-x-auto">
+                    <div v-if="loadingData" class="p-8 text-center text-gray-500">Fetching records...</div>
+                    <table v-else class="w-full django-table text-left">
+                        <thead>
+                            <tr>
+                                <th v-for="field in selectedModel.fields" :key="field.name">{{ field.name.toUpperCase() }}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-if="modelData.length === 0">
+                                <td :colspan="selectedModel.fields.length" class="text-center py-4 text-gray-500">0 {{ selectedModel.model.toLowerCase() }}s found.</td>
+                            </tr>
+                            <tr v-for="(row, idx) in modelData" :key="idx">
+                                <td v-for="field in selectedModel.fields" :key="field.name">
+                                    <span v-if="field.identifier" class="django-link font-bold">{{ row[field.name] }}</span>
+                                    <span v-else>{{ row[field.name] }}</span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div class="p-2 bg-gray-50 text-xs text-gray-500 border-t">
+                        {{ modelData.length }} {{ selectedModel.model.toLowerCase() }}s
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, onMounted, computed } = Vue;
+
+        createApp({
+            setup() {
+                const schema = ref([]);
+                const loading = ref(true);
+                const selectedModel = ref(null);
+                const modelData = ref([]);
+                const loadingData = ref(false);
+
+                const fetchSchema = async () => {
+                    loading.value = true;
+                    try {
+                        const res = await fetch('/nexa-admin/api/schema');
+                        const json = await res.json();
+                        schema.value = json.data || [];
+                    } catch (e) {
+                        console.error('Error fetching schema:', e);
+                    } finally {
+                        loading.value = false;
+                    }
+                };
+
+                const groupedSchema = computed(() => {
+                    const groups = {};
+                    schema.value.forEach(item => {
+                        if (!groups[item.app]) groups[item.app] = [];
+                        groups[item.app].push(item);
+                    });
+                    return groups;
+                });
+
+                const openModel = async (model) => {
+                    selectedModel.value = model;
+                    loadingData.value = true;
+                    modelData.value = [];
+                    try {
+                        const res = await fetch(`/nexa-admin/api/data/${model.class}`);
+                        const json = await res.json();
+                        modelData.value = json.data || [];
+                    } catch (e) {
+                        console.error('Error fetching data:', e);
+                    } finally {
+                        loadingData.value = false;
+                    }
+                };
+
+                onMounted(() => {
+                    fetchSchema();
+                });
+
+                return {
+                    schema,
+                    groupedSchema,
+                    loading,
+                    selectedModel,
+                    openModel,
+                    modelData,
+                    loadingData
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>

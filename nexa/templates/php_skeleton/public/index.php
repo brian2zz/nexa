@@ -2,6 +2,12 @@
 
 require __DIR__ . '/../vendor/autoload.php';
 
+// Load Environment Variables
+$dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/../');
+if (file_exists(__DIR__ . '/../.env')) {
+    $dotenv->load();
+}
+
 use Nexa\ModuleLoader;
 use Nexa\ServiceRegistry;
 use DI\ContainerBuilder;
@@ -17,7 +23,17 @@ $moduleLoader = new ModuleLoader();
 $moduleLoader->loadModules(__DIR__ . '/../apps');
 
 // 3. Load Routes
-$dispatcher = FastRoute\simpleDispatcher(function(RouteCollector $r) {
+$dispatcher = FastRoute\simpleDispatcher(function(FastRoute\RouteCollector $r) {
+    // Nexa Admin Routes (Stealth Mode)
+    if (class_exists('Nexa\Admin\Controllers\AdminController')) {
+        $r->addRoute('GET', '/nexa-admin/api/schema', ['Nexa\Admin\Controllers\AdminController', 'schema']);
+        $r->addRoute('GET', '/nexa-admin/api/data/{entity:.+}', ['Nexa\Admin\Controllers\AdminController', 'listData']);
+        $r->addRoute('POST', '/nexa-admin/api/data/{entity:.+}', ['Nexa\Admin\Controllers\AdminController', 'createData']);
+        $r->addRoute('PUT', '/nexa-admin/api/data/{entity:.+}/{id:\d+}', ['Nexa\Admin\Controllers\AdminController', 'updateData']);
+        $r->addRoute('DELETE', '/nexa-admin/api/data/{entity:.+}/{id:\d+}', ['Nexa\Admin\Controllers\AdminController', 'deleteData']);
+    }
+
+    // Load module routes
     $appsPath = __DIR__ . '/../apps';
     if (is_dir($appsPath)) {
         $directories = array_diff(scandir($appsPath), ['..', '.']);
@@ -41,6 +57,14 @@ $uri = rawurldecode($uri);
 $routeInfo = $dispatcher->dispatch($httpMethod, $uri);
 switch ($routeInfo[0]) {
     case FastRoute\Dispatcher::NOT_FOUND:
+        // Serve index.html for non-API routes (SPA support)
+        if (strpos($uri, '/api') !== 0) {
+            $indexPath = __DIR__ . '/index.html';
+            if (file_exists($indexPath)) {
+                echo file_get_contents($indexPath);
+                exit;
+            }
+        }
         http_response_code(404);
         header('Content-Type: application/json');
         echo json_encode(['error' => 'Not Found']);
@@ -65,7 +89,19 @@ switch ($routeInfo[0]) {
             $response = ['error' => 'Invalid route handler'];
         }
 
-        header('Content-Type: application/json');
-        echo json_encode($response);
+        if (is_array($response)) {
+            header('Content-Type: application/json');
+            echo json_encode($response);
+        } elseif (is_string($response)) {
+            if (strpos(trim($response), '<') === 0) {
+                header('Content-Type: text/html');
+            } else {
+                header('Content-Type: text/plain');
+            }
+            echo $response;
+        } else {
+            header('Content-Type: application/json');
+            echo json_encode(['data' => $response]);
+        }
         break;
 }

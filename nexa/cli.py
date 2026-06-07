@@ -41,6 +41,18 @@ def main():
         'generate': 'nexa.commands.flutter.generate',
     }
 
+    # Mappings untuk built-in nexa php commands
+    built_in_php_commands = {
+        'new': 'nexa.commands.php.new',
+        'make:module': 'nexa.commands.php.make_module',
+        'run': 'nexa.commands.php.run',
+        'generate': 'nexa.commands.php.generate',
+        'install': 'nexa.commands.php.install',
+        'make:migration': 'nexa.commands.php.make_migration',
+        'make:migrate': 'nexa.commands.php.migrate',
+        'migrate': 'nexa.commands.php.migrate',
+    }
+
     if command == 'django':
         django_args = args[1:]
         if not django_args:
@@ -101,34 +113,63 @@ def main():
         print("✅ Nexa berhasil diperbarui ke versi terbaru!")
         return
             
-    elif command in built_in_commands or command in built_in_flutter_commands:
+    elif command == 'php':
+        php_args = args[1:]
+        if not php_args:
+            print('Nexa PHP CLI')
+            print('Usage: nexa php <subcommand> [args]')
+            print('Available subcommands:')
+            for sub in sorted(built_in_php_commands.keys()):
+                print(f'  {sub}')
+            return
+
+        subcommand = php_args[0]
+        sub_args = php_args[1:]
+
+        if subcommand in built_in_php_commands:
+            module_name = built_in_php_commands[subcommand]
+            module = importlib.import_module(module_name)
+            module.handle(sub_args)
+        else:
+            print(f"Unknown PHP subcommand: {subcommand}")
+            
+    elif command in built_in_commands or command in built_in_flutter_commands or command in built_in_php_commands:
         options = []
         if command in built_in_commands:
             options.append('django')
         if command in built_in_flutter_commands:
             options.append('flutter')
+        if command in built_in_php_commands:
+            options.append('php')
 
         if len(options) == 1:
             platform = options[0]
             print(f"[HINT] Mengarahkan ke 'nexa {platform} {command}'...")
             if platform == 'django':
                 module_name = built_in_commands[command]
-            else:
+            elif platform == 'flutter':
                 module_name = built_in_flutter_commands[command]
+            else:
+                module_name = built_in_php_commands[command]
             module = importlib.import_module(module_name)
             module.handle(args[1:])
         else:
             print(f"🤔 Perintah '{command}' tersedia di kedua platform.")
             print("1) Django")
             print("2) Flutter")
+            print("3) PHP")
             try:
-                choice = input("Pilih platform target (1/2): ").strip()
+                choice = input("Pilih platform target (1/2/3): ").strip()
                 if choice == '1':
                     module_name = built_in_commands[command]
                     module = importlib.import_module(module_name)
                     module.handle(args[1:])
                 elif choice == '2':
                     module_name = built_in_flutter_commands[command]
+                    module = importlib.import_module(module_name)
+                    module.handle(args[1:])
+                elif choice == '3':
+                    module_name = built_in_php_commands[command]
                     module = importlib.import_module(module_name)
                     module.handle(args[1:])
                 else:

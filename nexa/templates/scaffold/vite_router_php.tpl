@@ -3,7 +3,7 @@ import NProgress from 'nprogress'
 import 'nprogress/nprogress.css'
 import MainLayout from '../admin-nexa/components/MainLayout.vue'
 import Dashboard from '../admin-nexa/pages/Dashboard.vue'
-// NEXA_ROUTE_IMPORTS
+import DynamicList from '../admin-nexa/pages/DynamicList.vue'
 
 // Configure NProgress
 NProgress.configure({ showSpinner: false })
@@ -25,7 +25,11 @@ const router = createRouter({
           name: 'admin_dashboard',
           component: Dashboard
         },
-// NEXA_ROUTES
+        {
+          path: 'table/:entity',
+          name: 'dynamic_list',
+          component: DynamicList
+        }
       ]
     }
   ]

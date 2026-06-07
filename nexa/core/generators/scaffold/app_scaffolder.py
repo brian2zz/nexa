@@ -55,12 +55,19 @@ class AppEntryGenerator(BaseGenerator):
         home_content = render_template(home_tpl, self.context)
         write_file(os.path.join(pages_path, 'Home.vue'), home_content)
 
-        # 6b. Generate admin-nexa/pages/Dashboard.vue
+        # 6b. Generate admin-nexa/pages/Dashboard.vue and MainLayout.vue
         admin_pages_path = os.path.join(app_frontend_path, 'src', 'admin-nexa', 'pages')
+        admin_components_path = os.path.join(app_frontend_path, 'src', 'admin-nexa', 'components')
         os.makedirs(admin_pages_path, exist_ok=True)
+        os.makedirs(admin_components_path, exist_ok=True)
+        
         dashboard_tpl = load_template('scaffold/vite_admin_dashboard.tpl')
         dashboard_content = render_template(dashboard_tpl, self.context)
         write_file(os.path.join(admin_pages_path, 'Dashboard.vue'), dashboard_content)
+        
+        layout_tpl = load_template('scaffold/vite_main_layout.tpl')
+        layout_content = render_template(layout_tpl, self.context)
+        write_file(os.path.join(admin_components_path, 'MainLayout.vue'), layout_content)
 
         # 7. Generate Django index.html (The bridge)
         django_index_tpl = load_template('scaffold/django_index.tpl')
