@@ -11,7 +11,8 @@
     "vue": "^3.5.0",
     "vue-router": "^4.0.0",
     "pinia": "^2.0.0",
-    "axios": "^1.0.0"
+    "axios": "^1.0.0",
+    "nprogress": "^0.2.0"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.0.0",
