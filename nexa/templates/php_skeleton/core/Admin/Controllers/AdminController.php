@@ -51,10 +51,10 @@ class AdminController
         return ['data' => $schema];
     }
 
-    public function listData($entityClass)
+    public function listData($entity)
     {
         $em = Database::getEntityManager();
-        $class = str_replace('-', '\\', $entityClass);
+        $class = str_replace('-', '\\', $entity);
         if (!class_exists($class)) {
             http_response_code(404);
             return ['error' => 'Entity not found'];
@@ -83,10 +83,10 @@ class AdminController
         return ['data' => $result];
     }
 
-    public function createData($entityClass)
+    public function createData($entity)
     {
         $em = Database::getEntityManager();
-        $class = str_replace('-', '\\', $entityClass);
+        $class = str_replace('-', '\\', $entity);
         if (!class_exists($class)) {
             http_response_code(404);
             return ['error' => 'Entity not found'];
@@ -124,10 +124,10 @@ class AdminController
         return ['status' => 'created'];
     }
 
-    public function updateData($entityClass, $id)
+    public function updateData($entity, $id)
     {
         $em = Database::getEntityManager();
-        $class = str_replace('-', '\\', $entityClass);
+        $class = str_replace('-', '\\', $entity);
         if (!class_exists($class)) {
             http_response_code(404);
             return ['error' => 'Entity not found'];
@@ -164,10 +164,10 @@ class AdminController
         return ['status' => 'updated'];
     }
 
-    public function deleteData($entityClass, $id)
+    public function deleteData($entity, $id)
     {
         $em = Database::getEntityManager();
-        $class = str_replace('-', '\\', $entityClass);
+        $class = str_replace('-', '\\', $entity);
         if (!class_exists($class)) {
             http_response_code(404);
             return ['error' => 'Entity not found'];
