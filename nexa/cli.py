@@ -38,6 +38,7 @@ def main():
         'new': 'nexa.commands.flutter.new',
         'gen-model': 'nexa.commands.flutter.gen_model',
         'run': 'nexa.commands.flutter.run',
+        'generate': 'nexa.commands.flutter.generate',
     }
 
     if command == 'django':
@@ -93,12 +94,41 @@ def main():
                 *sub_args
             ], shell=(os.name == 'nt'))
             
-    elif command in built_in_commands:
-        # Backward compatibility dengan petunjuk (hint)
-        print(f"[HINT] Perintah '{command}' sekarang dikelompokkan di bawah 'nexa django {command}'.")
-        module_name = built_in_commands[command]
-        module = importlib.import_module(module_name)
-        module.handle(args[1:])
+    elif command in built_in_commands or command in built_in_flutter_commands:
+        options = []
+        if command in built_in_commands:
+            options.append('django')
+        if command in built_in_flutter_commands:
+            options.append('flutter')
+
+        if len(options) == 1:
+            platform = options[0]
+            print(f"[HINT] Mengarahkan ke 'nexa {platform} {command}'...")
+            if platform == 'django':
+                module_name = built_in_commands[command]
+            else:
+                module_name = built_in_flutter_commands[command]
+            module = importlib.import_module(module_name)
+            module.handle(args[1:])
+        else:
+            print(f"🤔 Perintah '{command}' tersedia di kedua platform.")
+            print("1) Django")
+            print("2) Flutter")
+            try:
+                choice = input("Pilih platform target (1/2): ").strip()
+                if choice == '1':
+                    module_name = built_in_commands[command]
+                    module = importlib.import_module(module_name)
+                    module.handle(args[1:])
+                elif choice == '2':
+                    module_name = built_in_flutter_commands[command]
+                    module = importlib.import_module(module_name)
+                    module.handle(args[1:])
+                else:
+                    print("❌ Pilihan tidak valid. Dibatalkan.")
+            except KeyboardInterrupt:
+                print("\n❌ Dibatalkan.")
+                return
         
     else:
         # Fallback lama untuk perintah manage.py langsung
