@@ -1,0 +1,17 @@
+{
+    "name": "nexa/php-skeleton",
+    "description": "The NexaPHP Framework Skeleton",
+    "type": "project",
+    "require": {
+        "php": ">=8.2",
+        "nikic/fast-route": "^1.3",
+        "php-di/php-di": "^7.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Nexa\\": "core/",
+            "Apps\\": "apps/"
+        }
+    },
+    "minimum-stability": "stable"
+}
