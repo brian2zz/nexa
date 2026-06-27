@@ -2,6 +2,7 @@ import sys
 import subprocess
 import importlib
 import os
+from nexa import __version__
 
 def main():
     args = sys.argv[1:]
@@ -15,6 +16,10 @@ def main():
         return
 
     command = args[0]
+    
+    if command in ['-v', '--version', 'version']:
+        print(f"\033[96mNexa AI Framework v{__version__}\033[0m")
+        return
 
     # Mappings untuk built-in nexa django commands
     built_in_commands = {
