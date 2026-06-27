@@ -3,9 +3,9 @@ from setuptools import setup, find_packages
 
 setup(
     name='nexa-framework',
-    version='0.1.10',
+    version='0.1.11',
     author='Brian',
-    description='A full-stack framework for Django and Vue.js applications',
+    description='A full-stack framework for Django, Vue.js, and PHP applications',
     long_description=open('README.md', encoding='utf-8').read() if os.path.exists('README.md') else '',
     long_description_content_type='text/markdown',
     url='https://github.com/brian/nexa',

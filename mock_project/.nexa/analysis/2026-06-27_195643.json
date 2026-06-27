@@ -1,0 +1,52 @@
+{
+  "report": {
+    "summary": "This is a great workspace module, but needs more security.",
+    "strengths": [
+      "Clean separation of concerns"
+    ],
+    "weaknesses": [
+      "Lack of rate limiting"
+    ],
+    "technical_debt": [
+      {
+        "severity": "high",
+        "file": "WorkspaceController.py",
+        "issue": "No rate limiting"
+      }
+    ],
+    "recommendations": [
+      {
+        "priority": "high",
+        "description": "Implement rate limiting middleware"
+      }
+    ],
+    "architecture_score": 9,
+    "security_score": 6,
+    "performance_score": 8,
+    "maintainability_score": 7,
+    "testing_score": 0,
+    "documentation_score": 0,
+    "next_steps": [
+      "Add rate limiting",
+      "Write more unit tests"
+    ],
+    "confidence": "High",
+    "prompt_version": "v1.0",
+    "knowledge_version": "v2.3.1",
+    "provider_metadata": {
+      "name": "MockProvider",
+      "model": "mock-model-v1",
+      "temperature": 0.0,
+      "latency_sec": 0.00035119056701660156,
+      "estimated_tokens": 220
+    }
+  },
+  "provider_metadata": {
+    "name": "MockProvider",
+    "model": "mock-model-v1",
+    "temperature": 0.0,
+    "latency_sec": 0.00035119056701660156,
+    "estimated_tokens": 220
+  },
+  "raw_response": "{\"summary\": \"This is a great workspace module, but needs more security.\", \"scores\": {\"architecture\": 9, \"security\": 6, \"performance\": 8}, \"technical_debt\": [{\"severity\": \"high\", \"file\": \"WorkspaceController.py\", \"issue\": \"No rate limiting\"}], \"recommendations\": [{\"priority\": \"high\", \"description\": \"Implement rate limiting middleware\"}], \"strengths\": [\"Clean separation of concerns\"], \"weaknesses\": [\"Lack of rate limiting\"], \"next_steps\": [\"Add rate limiting\", \"Write more unit tests\"], \"confidence\": \"High\"}"
+}

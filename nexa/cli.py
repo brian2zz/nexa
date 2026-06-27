@@ -45,12 +45,24 @@ def main():
     built_in_php_commands = {
         'new': 'nexa.commands.php.new',
         'make:module': 'nexa.commands.php.make_module',
+        'make:model': 'nexa.commands.php.make_model',
         'run': 'nexa.commands.php.run',
         'generate': 'nexa.commands.php.generate',
         'install': 'nexa.commands.php.install',
         'make:migration': 'nexa.commands.php.make_migration',
         'make:migrate': 'nexa.commands.php.migrate',
         'migrate': 'nexa.commands.php.migrate',
+    }
+
+    # Mappings untuk built-in nexa ai commands
+    built_in_ai_commands = {
+        'scan': 'nexa.commands.ai.scan',
+        'tree': 'nexa.commands.ai.tree',
+        'analyze': 'nexa.commands.ai.analyze',
+        'plan': 'nexa.commands.ai.plan',
+        'ai': 'nexa.commands.ai.shell',
+        'explain': 'nexa.commands.ai.explain',
+        'create': 'nexa.commands.ai.create',
     }
 
     if command == 'django':
@@ -108,7 +120,7 @@ def main():
     elif command == 'update':
         print("[INFO] Mengunduh dan memperbarui Nexa Framework dari GitHub...")
         subprocess.run([
-            sys.executable, '-m', 'pip', 'install', '--upgrade', 'git+https://github.com/brian2zz/nexa.git'
+            sys.executable, '-m', 'pip', 'install', '--upgrade', '--force-reinstall', '--no-cache-dir', 'git+https://github.com/brian2zz/nexa.git'
         ])
         print("✅ Nexa berhasil diperbarui ke versi terbaru!")
         return
@@ -132,6 +144,11 @@ def main():
             module.handle(sub_args)
         else:
             print(f"Unknown PHP subcommand: {subcommand}")
+            
+    elif command in built_in_ai_commands:
+        module_name = built_in_ai_commands[command]
+        module = importlib.import_module(module_name)
+        module.handle(args[1:])
             
     elif command in built_in_commands or command in built_in_flutter_commands or command in built_in_php_commands:
         options = []

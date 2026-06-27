@@ -1,6 +1,6 @@
 # Nexa Framework Enterprise SaaS & ERP Engine 🚀
 
-**Nexa** adalah framework *full-stack & cross-platform* mutakhir yang didesain untuk menyintesis seluruh arsitektur aplikasi berskala *Enterprise* (SaaS & ERP) dari satu sumber kebenaran (*Single Source of Truth*) menggunakan **Django REST Framework** (Backend), **Vue.js 3 / Composition API** (Web Frontend), serta **Flutter Clean Architecture & Riverpod** (Mobile Frontend).
+**Nexa** adalah framework *full-stack & cross-platform* mutakhir yang didesain untuk menyintesis seluruh arsitektur aplikasi berskala *Enterprise* (SaaS & ERP) dari satu sumber kebenaran (*Single Source of Truth*) menggunakan **Django REST Framework** atau **NexaPHP** (Backend), **Vue.js 3 / Composition API** (Web Frontend), serta **Flutter Clean Architecture & Riverpod** (Mobile Frontend).
 
 ---
 
@@ -47,6 +47,12 @@ Verifikasi instalasi dengan menjalankan:
 
 ```bash
 nexa --help
+```
+
+Untuk memperbarui Nexa ke versi terbaru, cukup jalankan:
+
+```bash
+nexa update
 ```
 
 ---
@@ -110,6 +116,23 @@ Nexa CLI memisahkan ekosistem perintah secara rapi di bawah kendali `django` dan
 | `nexa flutter run [args]` | Menjalankan aplikasi secara interaktif dengan shortkey `c`, `s`, `p`, `e` & Network Logs. |
 | `nexa flutter build [args]` | Membangun rilis produksi (APK, AppBundle, dll.) dengan dukungan penuh variasi flag. |
 | `nexa flutter [any_subcommand]` | *Auto-Fallback* cerdas, meneruskan perintah apa saja langsung ke native Flutter CLI. |
+
+### 🐘 Grup Perintah PHP & Web (`nexa php <command>`)
+
+| Perintah | Fungsi / Peran |
+| :--- | :--- |
+| `nexa php new [name]` | Menciptakan direktori proyek ekosistem Nexa PHP baru. |
+| `nexa php make:module [name]` | Menyiapkan struktur modul bisnis baru (bisa dengan flag `--enterprise`). |
+| `nexa php generate [file.yaml]` | Mensintesis *Backend* API & migrasi database dari skema YAML. |
+| `nexa php run` | Mengorkestrasi server PHP Built-in dan Vite frontend serentak. |
+| `nexa php make:migration` | Memindai entitas Doctrine ORM dan membuat berkas migrasi PHP. |
+| `nexa php migrate` | Mengeksekusi migrasi ke dalam basis data aktif. |
+
+### 🛠️ Perintah Utilitas Global
+
+| Perintah | Fungsi / Peran |
+| :--- | :--- |
+| `nexa update` | Mengunduh dan memperbarui instalasi Nexa CLI ke versi terbaru. |
 
 ---
 

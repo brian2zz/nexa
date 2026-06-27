@@ -1,0 +1,51 @@
+from prompt_toolkit.completion import Completer, Completion, WordCompleter, PathCompleter
+from prompt_toolkit.document import Document
+
+class NexaMentionCompleter(Completer):
+    def __init__(self, slash_completer):
+        self.slash_completer = slash_completer
+        self.dir_completer = PathCompleter(only_directories=True, expanduser=True)
+        self.file_completer = PathCompleter(only_directories=False, expanduser=True)
+        
+        # We also provide completions for the explicit prefixes
+        self.prefix_completer = WordCompleter(['@directory:', '@file:', '@code:'], ignore_case=True)
+
+    def get_completions(self, document: Document, complete_event):
+        word_before_cursor = document.get_word_before_cursor(WORD=True)
+
+        if word_before_cursor.startswith('/'):
+            # Delegate to slash commands completer (like /explain, /dir, /status)
+            yield from self.slash_completer.get_completions(document, complete_event)
+            return
+
+        if word_before_cursor.startswith('@'):
+            # If they just typed "@" or a partial prefix, suggest @directory:, @file:, etc.
+            if len(word_before_cursor) <= 1 or word_before_cursor in ('@directory', '@file', '@code', '@d', '@f', '@c'):
+                yield from self.prefix_completer.get_completions(document, complete_event)
+            
+            if word_before_cursor.startswith('@directory:'):
+                # Autocomplete for directories only
+                path_word = word_before_cursor[11:]
+                sub_doc = Document(path_word, cursor_position=len(path_word))
+                for c in self.dir_completer.get_completions(sub_doc, complete_event):
+                    yield Completion(c.text, start_position=c.start_position, display=c.display)
+            
+            elif word_before_cursor.startswith('@file:'):
+                # Autocomplete for files & directories
+                path_word = word_before_cursor[6:]
+                sub_doc = Document(path_word, cursor_position=len(path_word))
+                for c in self.file_completer.get_completions(sub_doc, complete_event):
+                    yield Completion(c.text, start_position=c.start_position, display=c.display)
+                    
+            elif word_before_cursor.startswith('@code:'):
+                # No specific autocompletion for code snippets yet, but we allow it
+                pass
+                
+            else:
+                # Raw @path mention (treat as @file:)
+                path_word = word_before_cursor[1:]
+                # We skip standard prefix suggestions if they actually typed a real path prefix
+                if not any(word_before_cursor.startswith(p) for p in ['@directory', '@file', '@code']):
+                    sub_doc = Document(path_word, cursor_position=len(path_word))
+                    for c in self.file_completer.get_completions(sub_doc, complete_event):
+                        yield Completion(c.text, start_position=c.start_position, display=c.display)
