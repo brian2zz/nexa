@@ -18,6 +18,27 @@ class ChatMemoryManager:
             
         self.db_path = db_path
         self._init_db()
+        self.cleanup_sessions()
+        
+    def cleanup_sessions(self):
+        """
+        Membersihkan database dari:
+        1. Sesi yang kosong (0 pesan)
+        2. Sesi yang lebih tua dari 3 hari
+        """
+        with self._get_conn() as conn:
+            conn.execute("PRAGMA foreign_keys = ON")
+            
+            # Hapus sesi yang lebih dari 3 hari
+            three_days_ago = datetime.datetime.now() - datetime.timedelta(days=3)
+            conn.execute("DELETE FROM sessions WHERE created_at < ?", (three_days_ago,))
+            
+            # Hapus sesi yang tidak punya message sama sekali
+            conn.execute('''
+                DELETE FROM sessions 
+                WHERE id NOT IN (SELECT DISTINCT session_id FROM messages)
+            ''')
+            conn.commit()
         
     def _get_conn(self):
         return sqlite3.connect(self.db_path)
@@ -95,6 +116,22 @@ class ChatMemoryManager:
                 (project_path, limit)
             )
             return cursor.fetchall()
+            
+    def delete_session(self, session_id: int) -> bool:
+        """Deletes a specific session and its messages (handled by CASCADE if FK is ON, but we explicitly delete to be safe)."""
+        with self._get_conn() as conn:
+            conn.execute("PRAGMA foreign_keys = ON")
+            cursor = conn.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
+            conn.commit()
+            return cursor.rowcount > 0
+            
+    def clear_project_sessions(self, project_path: str) -> int:
+        """Deletes all sessions for a given project path."""
+        with self._get_conn() as conn:
+            conn.execute("PRAGMA foreign_keys = ON")
+            cursor = conn.execute("DELETE FROM sessions WHERE project_path = ?", (project_path,))
+            conn.commit()
+            return cursor.rowcount
 
 class Memory:
     """

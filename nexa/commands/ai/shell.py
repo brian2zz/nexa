@@ -9,9 +9,13 @@ def print_help():
     print("  /set-model <name>        : Set the active model for the current provider")
     print("  /set-api-key             : Securely enter API Key for current provider")
     print("  /status                  : Show current configuration")
-    print("  /history                 : Show chat session history")
-    print("  /load <id>               : Load a past chat session")
+    print("  /history                 : Show chat session history (alias for /session list)")
+    print("  /load <id>               : Load a past chat session (alias for /session enter)")
     print("  /clear                   : Clear current chat session")
+    print("  /session list            : Show all chat sessions for this project")
+    print("  /session enter <id>      : Switch to a specific session")
+    print("  /session delete <id>     : Delete a specific session")
+    print("  /session clear-all       : Delete all sessions for this project")
     print("  /plan <goal>             : Generate an Execution Plan for a task")
     print("  /facts                   : Show project facts")
     print("  /facts set <k> <v>       : Set a project fact")
@@ -98,8 +102,10 @@ def handle(args):
         facts_manager = ProjectFactsManager()
         pins_manager = PinnedMemoryManager()
         last_ai_response = ""
+        from nexa.core.agent.runtime import NexaAgentRuntime
+        runtime = NexaAgentRuntime(cwd=cwd)
         print(f"[*] Started new chat session (ID: {runtime.session_id})")
-        
+
         provider_completer = WordCompleter(['ollama', 'deepseek', 'groq', 'mock'], ignore_case=True)
         path_completer = PathCompleter(only_directories=False, expanduser=True)
         
@@ -120,6 +126,12 @@ def handle(args):
             '/pins': None,
             '/unpin': None,
             '/clearpins': None,
+            '/session': {
+                'list': None,
+                'enter': None,
+                'delete': None,
+                'clear-all': None,
+            },
             '/commands': None,
             '/exit': None,
             '/quit': None,
@@ -133,7 +145,7 @@ def handle(args):
         def get_input():
             provider = Config.get("provider", "mock")
             model = Config.get(f"{provider}.model", "unknown")
-            return session.prompt(f"Nexa>{model}> ").strip()
+            return session.prompt(f"Nexa>{model}> ", complete_while_typing=True).strip()
     except Exception as e:
         # Fallback if prompt_toolkit fails (e.g. NoConsoleScreenBufferError in some terminals)
         def get_input():
@@ -141,9 +153,6 @@ def handle(args):
             model = Config.get(f"{provider}.model", "unknown")
             return input(f"Nexa>{model}> ").strip()
             
-    from nexa.core.agent.runtime import NexaAgentRuntime
-    runtime = NexaAgentRuntime(cwd=cwd)
-
     def command_handler(cmd):
         nonlocal last_ai_response
         if not cmd:
@@ -396,8 +405,48 @@ def handle(args):
                 print(f"[*] Loaded chat session ID: {runtime.session_id}")
                 
         elif cmd.lower() == "/clear":
+            runtime.session_id = memory_manager.create_session(cwd)
             print(f"[*] Memory cleared. Started new session (ID: {runtime.session_id})")
             
+        elif cmd.lower().startswith("/session"):
+            parts = cmd.split()
+            if len(parts) == 1 or parts[1] == "list":
+                sessions = memory_manager.get_project_sessions(cwd)
+                if not sessions:
+                    print("No past sessions found for this project.")
+                else:
+                    print("\n=== Past Chat Sessions ===")
+                    for sid, created_at, msg_count in sessions:
+                        marker = " (Active)" if sid == runtime.session_id else ""
+                        print(f"  [{sid}] {created_at} - {msg_count} messages{marker}")
+                    print("==========================\n")
+            elif parts[1] in ["enter", "load"]:
+                if len(parts) < 3 or not parts[2].isdigit():
+                    print("Usage: /session enter <id>")
+                else:
+                    target_id = int(parts[2])
+                    runtime.session_id = target_id
+                    print(f"[*] Loaded chat session ID: {runtime.session_id}")
+            elif parts[1] == "delete":
+                if len(parts) < 3 or not parts[2].isdigit():
+                    print("Usage: /session delete <id>")
+                else:
+                    target_id = int(parts[2])
+                    if memory_manager.delete_session(target_id):
+                        print(f"[*] Deleted session ID: {target_id}")
+                        if runtime.session_id == target_id:
+                            runtime.session_id = memory_manager.create_session(cwd)
+                            print(f"[*] Active session was deleted. Created new session (ID: {runtime.session_id})")
+                    else:
+                        print(f"[!] Session {target_id} not found.")
+            elif parts[1] == "clear-all":
+                count = memory_manager.clear_project_sessions(cwd)
+                print(f"[*] Cleared {count} sessions for this project.")
+                runtime.session_id = memory_manager.create_session(cwd)
+                print(f"[*] Started new session (ID: {runtime.session_id})")
+            else:
+                print("Usage: /session [list | enter <id> | delete <id> | clear-all]")
+                
         elif cmd.startswith("/"):
             print(f"[!] Unknown command: {cmd}")
             
