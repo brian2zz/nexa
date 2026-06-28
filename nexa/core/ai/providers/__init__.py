@@ -4,12 +4,14 @@ from .mock import MockProvider
 from .ollama import OllamaProvider
 from .deepseek import DeepSeekProvider
 from .groq import GroqProvider
+from .gemini import GeminiProvider
 
 # Register default providers
 ProviderFactory.register("mock", MockProvider)
 ProviderFactory.register("ollama", OllamaProvider)
 ProviderFactory.register("deepseek", DeepSeekProvider)
 ProviderFactory.register("groq", GroqProvider)
+ProviderFactory.register("gemini", GeminiProvider)
 
 __all__ = [
     "LLMProvider",
@@ -17,5 +19,6 @@ __all__ = [
     "MockProvider",
     "OllamaProvider",
     "DeepSeekProvider",
-    "GroqProvider"
+    "GroqProvider",
+    "GeminiProvider"
 ]

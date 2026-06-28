@@ -80,7 +80,7 @@ def handle(args):
         from prompt_toolkit import PromptSession
         from prompt_toolkit.completion import WordCompleter, NestedCompleter, PathCompleter
         from prompt_toolkit.history import InMemoryHistory
-        from nexa.commands.ai.completer import NexaMentionCompleter
+        from nexa.commands.ai.completer import NexaMentionCompleter, DynamicModelCompleter
         from nexa.core.ai.scanner.detector import ProjectDetector
         import os
         
@@ -106,14 +106,15 @@ def handle(args):
         runtime = NexaAgentRuntime(cwd=cwd)
         print(f"[*] Started new chat session (ID: {runtime.session_id})")
 
-        provider_completer = WordCompleter(['ollama', 'deepseek', 'groq', 'mock'], ignore_case=True)
+        provider_completer = WordCompleter(['ollama', 'deepseek', 'groq', 'gemini', 'mock'], ignore_case=True)
         path_completer = PathCompleter(only_directories=False, expanduser=True)
+        model_completer = DynamicModelCompleter()
         
         slash_completer = NestedCompleter.from_nested_dict({
             '/help': None,
             '/status': None,
             '/select-provider': provider_completer,
-            '/set-model': None,
+            '/set-model': model_completer,
             '/set-api-key': None,
             '/dir': path_completer,
             '/explain': path_completer,
@@ -147,6 +148,7 @@ def handle(args):
             model = Config.get(f"{provider}.model", "unknown")
             return session.prompt(f"Nexa>{model}> ", complete_while_typing=True).strip()
     except Exception as e:
+        import traceback; traceback.print_exc()
         # Fallback if prompt_toolkit fails (e.g. NoConsoleScreenBufferError in some terminals)
         def get_input():
             provider = Config.get("provider", "mock")
@@ -215,7 +217,7 @@ def handle(args):
                 Config.set(f"{provider}.model", model_name)
                 print(f"[*] Model for {provider} set to: {model_name}")
                 
-        elif cmd.lower() == "/set-api-key":
+        elif cmd.lower().startswith("/set-api-key"):
             provider = Config.get("provider")
             set_api_key(provider)
             

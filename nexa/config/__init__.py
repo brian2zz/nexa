@@ -16,7 +16,8 @@ class Config:
                 "ollama.model": "qwen3:14b",
                 "ollama.temperature": 0.2,
                 "deepseek.model": "deepseek-chat",
-                "groq.model": "llama-3.1-8b-instant"
+                "groq.model": "llama-3.1-8b-instant",
+                "gemini.model": "gemini-2.5-flash"
             }
             if cls._config_file.exists():
                 try:

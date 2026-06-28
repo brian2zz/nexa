@@ -13,8 +13,8 @@ class NexaMentionCompleter(Completer):
     def get_completions(self, document: Document, complete_event):
         word_before_cursor = document.get_word_before_cursor(WORD=True)
 
-        if word_before_cursor.startswith('/'):
-            # Delegate to slash commands completer (like /explain, /dir, /status)
+        if document.text.lstrip().startswith('/'):
+            # Delegate to slash commands completer (like /explain, /dir, /set-model)
             yield from self.slash_completer.get_completions(document, complete_event)
             return
 
@@ -49,3 +49,26 @@ class NexaMentionCompleter(Completer):
                     sub_doc = Document(path_word, cursor_position=len(path_word))
                     for c in self.file_completer.get_completions(sub_doc, complete_event):
                         yield Completion(c.text, start_position=c.start_position, display=c.display)
+
+class DynamicModelCompleter(Completer):
+    def get_completions(self, document: Document, complete_event):
+        from nexa.config import Config
+        provider = Config.get("provider", "ollama").lower()
+        models = []
+        
+        if provider == "ollama":
+            models = ['qwen2.5-coder', 'qwen2.5', 'llama3.1', 'mistral', 'gemma2']
+        elif provider == "deepseek":
+            models = ['deepseek-chat', 'deepseek-coder']
+        elif provider == "groq":
+            models = ['llama-3.1-8b-instant', 'llama-3.1-70b-versatile']
+        elif provider == "gemini":
+            models = ['gemini-2.5-flash', 'gemini-1.5-pro', 'gemini-1.5-flash']
+        elif provider == "mock":
+            models = ['mock-model']
+            
+        word_before_cursor = document.get_word_before_cursor(WORD=True).lower()
+        for m in models:
+            if m.lower().startswith(word_before_cursor):
+                yield Completion(m, start_position=-len(word_before_cursor))
+
