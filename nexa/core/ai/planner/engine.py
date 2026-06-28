@@ -63,8 +63,13 @@ class AIPlannerEngine:
             "}\n\n"
             "CRITICAL RULES FOR TOOLS:\n"
             "1. DO NOT invent or call any tools that are not explicitly provided in the tool schemas.\n"
-            "2. If you need to execute a terminal command (e.g., 'git push', 'git pull', 'npm install'), DO NOT try to call a tool for it. Instead, include it as an execution_step with action='command' and target='command_string' in your final JSON plan.\n"
-            "3. If you have gathered enough information, immediately return the JSON.\n"
+            "2. NEVER answer questions about the codebase from your internal knowledge. You MUST use 'search_code', 'list_directory', or 'read_file' tools to investigate the local project BEFORE providing an answer.\n"
+            "3. If the user asks where something is located (e.g. 'dimana create X', 'dimana fungsi Y'), DO NOT assume they want to execute a modification. Treat it as a QUESTION. Use 'search_code' to find it, put the result in the 'summary', and leave 'execution_steps' EMPTY ([]).\n"
+            "4. If you need to execute a terminal command (e.g., 'git push', 'git pull', 'npm install'), DO NOT try to call a tool for it. Instead, include it as an execution_step with action='command' and target='command_string' in your final JSON plan.\n"
+            "4. If the user is just asking a question (e.g. searching for a function), use the search_code tool to find it, put the answer in the 'summary', and leave 'execution_steps' EMPTY ([]). DO NOT invent invalid actions like 'SEARCH'.\n"
+            "5. When providing search results in the 'summary', format them beautifully like an advanced AI assistant: specify the exact File Path, Line Number, and include the actual Code Snippet using Markdown code blocks.\n"
+            "6. If you search for something and cannot find it, DO NOT hallucinate file names or locations. Explicitly state in the 'summary' that it is not found, and DO NOT add any execution steps to create it unless the user explicitly requested creation.\n"
+            "7. If you have gathered enough information, immediately return the JSON.\n"
             "\nCRITICAL INSTRUCTION: Return ONLY the raw JSON object. Do not wrap it in markdown code blocks if possible, or if you do, ensure it is ONLY valid JSON."
         )
         return prompt

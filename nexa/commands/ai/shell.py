@@ -390,9 +390,10 @@ def handle(args):
                 print("No past sessions found for this project.")
             else:
                 print("\n=== Past Chat Sessions ===")
-                for sid, created_at, msg_count in sessions:
+                for sid, created_at, msg_count, name in sessions:
                     marker = " (Active)" if sid == runtime.session_id else ""
-                    print(f"  [{sid}] {created_at} - {msg_count} messages{marker}")
+                    disp_name = f" - \"{name}\"" if name else ""
+                    print(f"  [{sid}] {created_at} - {msg_count} messages{disp_name}{marker}")
                 print("==========================\n")
                 
         elif cmd.lower().startswith("/load "):
@@ -416,9 +417,10 @@ def handle(args):
                     print("No past sessions found for this project.")
                 else:
                     print("\n=== Past Chat Sessions ===")
-                    for sid, created_at, msg_count in sessions:
+                    for sid, created_at, msg_count, name in sessions:
                         marker = " (Active)" if sid == runtime.session_id else ""
-                        print(f"  [{sid}] {created_at} - {msg_count} messages{marker}")
+                        disp_name = f" - \"{name}\"" if name else ""
+                        print(f"  [{sid}] {created_at} - {msg_count} messages{disp_name}{marker}")
                     print("==========================\n")
             elif parts[1] in ["enter", "load"]:
                 if len(parts) < 3 or not parts[2].isdigit():
@@ -595,26 +597,33 @@ def handle(args):
                     GREEN = '\033[92m'
                     RESET = '\033[0m'
                     print(f"\n{GREEN}{report.to_markdown()}{RESET}\n")
+                    execution_steps = getattr(report.plan, "execution_steps", []) if not isinstance(report.plan, dict) else report.plan.get("execution_steps", [])
                     
-                    # TRIGGER APPROVAL WORKFLOW
-                    from nexa.core.events.bus import EventContext
-                    from nexa.core.models.enums import EventPriority
-                    import datetime
-                    runtime.bus.publish(EventContext(
-                        event_name="BeforeApproval",
-                        timestamp=datetime.datetime.now().isoformat(),
-                        source="AIPlannerEngine",
-                        priority=EventPriority.HIGH,
-                        session_id=runtime.session_id,
-                        payload={
-                            "files": getattr(report.plan, "affected_files", []) if not isinstance(report.plan, dict) else report.plan.get("affected_files", []),
-                            "risk": getattr(report.plan, "risk", "UNKNOWN") if not isinstance(report.plan, dict) else report.plan.get("risk", "UNKNOWN"),
-                            "plan": report.plan
-                        }
-                    ))
-                    
-                    memory_manager.save_message(runtime.session_id, "user", final_prompt)
-                    memory_manager.save_message(runtime.session_id, "assistant", "[Execution Plan Generated]")
+                    if not execution_steps:
+                        # LLM hanya melakukan investigasi (Search & Answer)
+                        memory_manager.save_message(runtime.session_id, "user", final_prompt)
+                        summary_text = getattr(report.plan, "summary", "") if not isinstance(report.plan, dict) else report.plan.get("summary", "")
+                        memory_manager.save_message(runtime.session_id, "assistant", summary_text)
+                    else:
+                        # TRIGGER APPROVAL WORKFLOW
+                        from nexa.core.events.bus import EventContext
+                        from nexa.core.models.enums import EventPriority
+                        import datetime
+                        runtime.bus.publish(EventContext(
+                            event_name="BeforeApproval",
+                            timestamp=datetime.datetime.now().isoformat(),
+                            source="AIPlannerEngine",
+                            priority=EventPriority.HIGH,
+                            session_id=runtime.session_id,
+                            payload={
+                                "files": getattr(report.plan, "affected_files", []) if not isinstance(report.plan, dict) else report.plan.get("affected_files", []),
+                                "risk": getattr(report.plan, "risk", "UNKNOWN") if not isinstance(report.plan, dict) else report.plan.get("risk", "UNKNOWN"),
+                                "plan": report.plan
+                            }
+                        ))
+                        
+                        memory_manager.save_message(runtime.session_id, "user", final_prompt)
+                        memory_manager.save_message(runtime.session_id, "assistant", "[Execution Plan Generated]")
                 else:
                     print(f"\n[!] Planning Failed: {report.error_message}\n")
                 return True

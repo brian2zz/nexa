@@ -64,6 +64,13 @@ class ChatMemoryManager:
             ''')
             conn.commit()
             
+        # Migrate schema to add 'name' if not exists
+        try:
+            with self._get_conn() as conn:
+                conn.execute("ALTER TABLE sessions ADD COLUMN name TEXT")
+        except sqlite3.OperationalError:
+            pass # Already exists
+            
     def create_session(self, project_path: str) -> int:
         with self._get_conn() as conn:
             cursor = conn.execute(
@@ -81,6 +88,17 @@ class ChatMemoryManager:
                 "INSERT INTO messages (session_id, role, content, created_at) VALUES (?, ?, ?, ?)",
                 (session_id, role, content, datetime.datetime.now())
             )
+            
+            # Set session name based on first user message
+            if role == "user":
+                cursor = conn.execute("SELECT name FROM sessions WHERE id = ?", (session_id,))
+                row = cursor.fetchone()
+                if row and not row[0]:
+                    name = content[:40].replace("\n", " ").strip()
+                    if len(content) > 40:
+                        name += "..."
+                    conn.execute("UPDATE sessions SET name = ? WHERE id = ?", (name, session_id))
+            
             conn.commit()
             
     def load_session_messages(self, session_id: int, limit: int = 6) -> List[Dict[str, str]]:
@@ -98,14 +116,14 @@ class ChatMemoryManager:
             messages.reverse()
             return messages
 
-    def get_project_sessions(self, project_path: str, limit: int = 10) -> List[Tuple[int, str, int]]:
+    def get_project_sessions(self, project_path: str, limit: int = 10) -> List[Tuple[int, str, int, str]]:
         """
-        Returns list of (session_id, created_at_str, message_count).
+        Returns list of (session_id, created_at_str, message_count, name).
         """
         with self._get_conn() as conn:
             cursor = conn.execute(
                 '''
-                SELECT s.id, s.created_at, COUNT(m.id) as msg_count 
+                SELECT s.id, s.created_at, COUNT(m.id) as msg_count, s.name 
                 FROM sessions s
                 LEFT JOIN messages m ON s.id = m.session_id
                 WHERE s.project_path = ?
