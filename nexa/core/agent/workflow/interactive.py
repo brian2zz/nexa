@@ -49,7 +49,19 @@ class ApprovalUI:
             
             if choice == 'A':
                 print("[*] Patch Approved. Executing...")
-                self.bus.publish(EventContext("ApprovalGranted", payload={"status": "approved", "plan": self.current_plan}, correlation_id=correlation_id))
+                
+                from nexa.core.models.enums import EventPriority
+                import datetime
+                
+                self.bus.publish(EventContext(
+                    event_name="ApprovalGranted",
+                    timestamp=datetime.datetime.now().isoformat(),
+                    source="ApprovalUI",
+                    priority=EventPriority.HIGH,
+                    session_id="", # Interactive tak punya session statis langsung
+                    payload={"status": "approved", "plan": self.current_plan}, 
+                    correlation_id=correlation_id
+                ))
                 self.is_waiting = False
             elif choice in ['R', 'Q']:
                 print("[!] Patch Rejected/Aborted.")
