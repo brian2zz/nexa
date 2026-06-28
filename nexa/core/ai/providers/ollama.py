@@ -8,7 +8,7 @@ class OllamaProvider(LLMProvider):
         self.host = Config.get("ollama.host", "http://localhost:11434")
         self.model = Config.get("ollama.model", "qwen3:14b")
         
-    def generate(self, messages: List[Dict[str, str]], temperature: float = 0.2) -> Dict[str, Any]:
+    def generate(self, messages: List[Dict[str, str]], temperature: float = 0.2, tools: List[Dict[str, Any]] = None) -> Dict[str, Any]:
         url = f"{self.host.rstrip('/')}/api/chat"
         
         payload = {

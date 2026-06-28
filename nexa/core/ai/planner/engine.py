@@ -1,6 +1,10 @@
-import json
-from typing import Dict, Any
+import time
+import datetime
+from typing import Dict, Any, Optional
 from nexa.core.ai.providers.factory import ProviderFactory
+from nexa.core.events.bus import PipelineBus
+from nexa.core.models.events import EventContext
+from nexa.core.models.enums import EventPriority
 from .schema import PlannerContext
 from .validator import PlanValidator
 from .report import PlannerReport
@@ -9,8 +13,9 @@ class AIPlannerEngine:
     """
     The orchestrator that generates Execution Plans based on deep context.
     """
-    def __init__(self):
+    def __init__(self, bus: Optional[PipelineBus] = None):
         self.validator = PlanValidator()
+        self.bus = bus
 
     def build_system_prompt(self, context: PlannerContext) -> str:
         prompt = (
@@ -60,11 +65,35 @@ class AIPlannerEngine:
         )
         return prompt
 
-    def plan(self, context: PlannerContext) -> PlannerReport:
+    def plan(self, context: PlannerContext, session_id: str = "default_session") -> PlannerReport:
+        start_time = time.time()
+        timestamp = datetime.datetime.now().isoformat()
+        
+        if self.bus:
+            self.bus.publish(EventContext(
+                event_name="BeforePlanning",
+                timestamp=timestamp,
+                source="PlannerEngine",
+                priority=EventPriority.NORMAL,
+                session_id=session_id,
+                payload={"goal": context.user_goal}
+            ))
+            
         try:
             provider = ProviderFactory.create()
         except Exception as e:
-            return PlannerReport(success=False, error_message=f"Provider Error: {e}")
+            error_msg = f"Provider Error: {e}"
+            if self.bus:
+                self.bus.publish(EventContext(
+                    event_name="PlanningFailed",
+                    timestamp=datetime.datetime.now().isoformat(),
+                    source="PlannerEngine",
+                    priority=EventPriority.HIGH,
+                    session_id=session_id,
+                    duration=time.time() - start_time,
+                    payload={"error": error_msg}
+                ))
+            return PlannerReport(success=False, error_message=error_msg)
 
         sys_prompt = self.build_system_prompt(context)
         
@@ -75,16 +104,100 @@ class AIPlannerEngine:
             
         messages.append({"role": "user", "content": f"Create an ExecutionPlan for this goal: {context.user_goal}"})
         
-        try:
-            # Note: We can pass response_format={"type": "json_object"} if the provider supports it.
-            # For now, we rely on prompt constraints + validator fallback.
-            raw_resp = provider.generate(messages)
-            content = raw_resp.get("content", "") if isinstance(raw_resp, dict) else str(raw_resp)
-        except Exception as e:
-            return PlannerReport(success=False, error_message=f"Generation Error: {e}")
+        from nexa.core.agent.tools.registry import ToolRegistry
+        from nexa.core.agent.tools.knowledge import register_knowledge_tools
+        import json
+        
+        tool_registry = ToolRegistry()
+        register_knowledge_tools(tool_registry, context.project_path)
+        tool_schemas = tool_registry.get_all_schemas()
+        
+        max_iterations = 5
+        content = ""
+        for _ in range(max_iterations):
+            try:
+                raw_resp = provider.generate(messages, tools=tool_schemas)
+                
+                # Check if raw_resp is a dictionary or string
+                if isinstance(raw_resp, dict):
+                    tool_calls = raw_resp.get("tool_calls", [])
+                    content = raw_resp.get("content", "")
+                else:
+                    tool_calls = []
+                    content = str(raw_resp)
+                
+                if not tool_calls:
+                    break
+                    
+                # Print indicator that tool is being called
+                print(f"       [Planner Tool Call]: {tool_calls[0].get('function', {}).get('name')}")
+                
+                # We have tool calls!
+                messages.append({
+                    "role": "assistant",
+                    "content": content,
+                    "tool_calls": tool_calls
+                })
+                
+                for tc in tool_calls:
+                    func_name = tc.get("function", {}).get("name")
+                    args_str = tc.get("function", {}).get("arguments", "{}")
+                    try:
+                        args = json.loads(args_str)
+                        result = tool_registry.execute(func_name, **args)
+                    except Exception as e:
+                        result = f"Error executing {func_name}: {e}"
+                        
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tc.get("id"),
+                        "name": func_name,
+                        "content": str(result)
+                    })
+                    
+            except Exception as e:
+                error_msg = f"Generation Error: {e}"
+                if self.bus:
+                    self.bus.publish(EventContext(
+                        event_name="PlanningFailed",
+                        timestamp=datetime.datetime.now().isoformat(),
+                        source="PlannerEngine",
+                        priority=EventPriority.HIGH,
+                        session_id=session_id,
+                        duration=time.time() - start_time,
+                        payload={"error": error_msg}
+                    ))
+                return PlannerReport(success=False, error_message=error_msg)
+        else:
+            if not content:
+                content = "{ \"error\": \"Max iterations reached\" }"
             
         success, error, plan = self.validator.validate(content)
+        
+        duration = time.time() - start_time
+        
         if not success:
+            if self.bus:
+                self.bus.publish(EventContext(
+                    event_name="PlanningFailed",
+                    timestamp=datetime.datetime.now().isoformat(),
+                    source="PlannerEngine",
+                    priority=EventPriority.HIGH,
+                    session_id=session_id,
+                    duration=duration,
+                    payload={"error": error}
+                ))
             return PlannerReport(success=False, error_message=error)
+            
+        if self.bus:
+            self.bus.publish(EventContext(
+                event_name="AfterPlanning",
+                timestamp=datetime.datetime.now().isoformat(),
+                source="PlannerEngine",
+                priority=EventPriority.NORMAL,
+                session_id=session_id,
+                duration=duration,
+                payload={"goal": context.user_goal, "status": "success"}
+            ))
             
         return PlannerReport(success=True, error_message="", plan=plan)

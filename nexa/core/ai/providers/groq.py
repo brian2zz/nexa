@@ -13,7 +13,7 @@ class GroqProvider(LLMProvider):
         if not self.api_key:
             raise ValueError("Groq API Key is missing. Set GROQ_API_KEY environment variable or 'groq.api_key' in config.")
 
-    def generate(self, messages: List[Dict[str, str]], temperature: float = 0.2) -> Dict[str, Any]:
+    def generate(self, messages: List[Dict[str, str]], temperature: float = 0.2, tools: List[Dict[str, Any]] = None) -> Dict[str, Any]:
         url = f"{self.host.rstrip('/')}/chat/completions"
         
         headers = {
@@ -27,6 +27,10 @@ class GroqProvider(LLMProvider):
             "temperature": temperature,
             "stream": False
         }
+        
+        if tools:
+            payload["tools"] = tools
+            payload["tool_choice"] = "auto"
         
         try:
             response = requests.post(url, headers=headers, json=payload, timeout=60)
@@ -46,13 +50,16 @@ class GroqProvider(LLMProvider):
                 
             data = response.json()
             
-            message_content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            message_data = data.get("choices", [{}])[0].get("message", {})
+            message_content = message_data.get("content", "")
+            tool_calls = message_data.get("tool_calls", [])
             usage_data = data.get("usage", {})
             
             return {
                 "content": message_content,
                 "provider": "groq",
                 "model": self.model,
+                "tool_calls": tool_calls,
                 "usage": {
                     "prompt_eval_count": usage_data.get("prompt_tokens", 0),
                     "eval_count": usage_data.get("completion_tokens", 0)
@@ -66,4 +73,4 @@ class GroqProvider(LLMProvider):
         return bool(self.api_key)
 
     def list_models(self) -> List[str]:
-        return ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "mixtral-8x7b-32768", "gemma2-9b-it"]
+        return ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "mixtral-8x7b-32768", "gemma2-9b-it", "openai/gpt-oss-120b", "openai/gpt-oss-20b"]

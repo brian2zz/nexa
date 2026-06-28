@@ -13,7 +13,7 @@ class DeepSeekProvider(LLMProvider):
         if not self.api_key:
             raise ValueError("DeepSeek API Key is missing. Set DEEPSEEK_API_KEY environment variable or 'deepseek.api_key' in config.")
 
-    def generate(self, messages: List[Dict[str, str]], temperature: float = 0.2) -> Dict[str, Any]:
+    def generate(self, messages: List[Dict[str, str]], temperature: float = 0.2, tools: List[Dict[str, Any]] = None) -> Dict[str, Any]:
         url = f"{self.host.rstrip('/')}/chat/completions"
         
         headers = {

@@ -4,6 +4,17 @@ import importlib
 import os
 from nexa import __version__
 
+def detect_project_type() -> str:
+    """Mendeteksi tipe project berdasarkan file yang ada di direktori saat ini."""
+    if os.path.exists('manage.py'):
+        return 'django'
+    if os.path.exists('pubspec.yaml'):
+        return 'flutter'
+    if os.path.exists('artisan') or os.path.exists('composer.json'):
+        return 'php'
+    return 'unknown'
+
+
 def main():
     args = sys.argv[1:]
 
@@ -68,6 +79,7 @@ def main():
         'ai': 'nexa.commands.ai.shell',
         'explain': 'nexa.commands.ai.explain',
         'create': 'nexa.commands.ai.create',
+        'ask': 'nexa.commands.ai.ask',
     }
 
     if command == 'django':
@@ -164,6 +176,23 @@ def main():
         if command in built_in_php_commands:
             options.append('php')
 
+        # Coba auto-detect project type dulu
+        detected_type = detect_project_type()
+        
+        if detected_type in options:
+            # Kita temukan project type, langsung eksekusi tanpa nanya
+            print(f"[AUTO-DETECT] Project {detected_type.capitalize()} terdeteksi. Mengarahkan ke 'nexa {detected_type} {command}'...")
+            if detected_type == 'django':
+                module_name = built_in_commands[command]
+            elif detected_type == 'flutter':
+                module_name = built_in_flutter_commands[command]
+            else:
+                module_name = built_in_php_commands[command]
+            module = importlib.import_module(module_name)
+            module.handle(args[1:])
+            return
+
+        # Jika gagal detect atau command hanya ada di 1 platform
         if len(options) == 1:
             platform = options[0]
             print(f"[HINT] Mengarahkan ke 'nexa {platform} {command}'...")
@@ -176,7 +205,7 @@ def main():
             module = importlib.import_module(module_name)
             module.handle(args[1:])
         else:
-            print(f"🤔 Perintah '{command}' tersedia di kedua platform.")
+            print(f"🤔 Perintah '{command}' tersedia di beberapa platform, dan tipe project tidak dapat dideteksi otomatis.")
             print("1) Django")
             print("2) Flutter")
             print("3) PHP")
@@ -201,13 +230,16 @@ def main():
                 return
         
     else:
-        # Fallback lama untuk perintah manage.py langsung
-        subprocess.run([
-            'python',
-            'manage.py',
-            command,
-            *args[1:]
-        ])
+        # Fallback lama: coba tebak project saat ini, kalau django panggil manage.py, kalau flutter panggil native
+        detected_type = detect_project_type()
+        if detected_type == 'django':
+            subprocess.run(['python', 'manage.py', command, *args[1:]])
+        elif detected_type == 'flutter':
+            subprocess.run(['flutter', command, *args[1:]], shell=(os.name == 'nt'))
+        elif detected_type == 'php' and os.path.exists('artisan'):
+            subprocess.run(['php', 'artisan', command, *args[1:]])
+        else:
+            print(f"❌ Perintah '{command}' tidak dikenali dan bukan dalam project Django/Flutter/PHP yang valid.")
 
 if __name__ == '__main__':
     main()

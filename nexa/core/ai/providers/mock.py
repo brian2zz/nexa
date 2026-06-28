@@ -3,7 +3,7 @@ from .base import LLMProvider
 import json
 
 class MockProvider(LLMProvider):
-    def generate(self, messages: List[Dict[str, str]], temperature: float = 0.2) -> Dict[str, Any]:
+    def generate(self, messages: List[Dict[str, str]], temperature: float = 0.2, tools: List[Dict[str, Any]] = None) -> Dict[str, Any]:
         # Extract intent from messages
         intent = ""
         for msg in messages:

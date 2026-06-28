@@ -5,7 +5,7 @@ class LLMProvider(ABC):
     """Abstract base class for all LLM providers."""
 
     @abstractmethod
-    def generate(self, messages: List[Dict[str, str]], temperature: float = 0.2) -> Dict[str, Any]:
+    def generate(self, messages: List[Dict[str, str]], temperature: float = 0.2, tools: List[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         Generate a response from the LLM based on a list of messages.
         
@@ -20,6 +20,7 @@ class LLMProvider(ABC):
             "content": "...",
             "provider": "...",
             "model": "...",
+            "tool_calls": [...],
             "usage": {}
         }
         """

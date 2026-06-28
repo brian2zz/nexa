@@ -97,10 +97,8 @@ def handle(args):
         memory_manager = ChatMemoryManager()
         facts_manager = ProjectFactsManager()
         pins_manager = PinnedMemoryManager()
-        
-        current_session_id = memory_manager.create_session(cwd)
         last_ai_response = ""
-        print(f"[*] Started new chat session (ID: {current_session_id})")
+        print(f"[*] Started new chat session (ID: {runtime.session_id})")
         
         provider_completer = WordCompleter(['ollama', 'deepseek', 'groq', 'mock'], ignore_case=True)
         path_completer = PathCompleter(only_directories=False, expanduser=True)
@@ -133,24 +131,27 @@ def handle(args):
         session = PromptSession(history=InMemoryHistory(), completer=completer)
         
         def get_input():
-            return session.prompt("Nexa> ").strip()
-    except ImportError:
+            provider = Config.get("provider", "mock")
+            model = Config.get(f"{provider}.model", "unknown")
+            return session.prompt(f"Nexa>{model}> ").strip()
+    except Exception as e:
+        # Fallback if prompt_toolkit fails (e.g. NoConsoleScreenBufferError in some terminals)
         def get_input():
-            return input("Nexa> ").strip()
+            provider = Config.get("provider", "mock")
+            model = Config.get(f"{provider}.model", "unknown")
+            return input(f"Nexa>{model}> ").strip()
             
-    while True:
-        try:
-            cmd = get_input()
-        except (KeyboardInterrupt, EOFError):
-            print("\nExiting Nexa AI Shell.")
-            break
-            
+    from nexa.core.agent.runtime import NexaAgentRuntime
+    runtime = NexaAgentRuntime(cwd=cwd)
+
+    def command_handler(cmd):
+        nonlocal last_ai_response
         if not cmd:
-            continue
+            return True
             
         if cmd.lower() in ["/exit", "/quit", "exit", "quit"]:
             print("Exiting Nexa AI Shell.")
-            break
+            return False
             
         elif cmd.lower() == "/help":
             print_help()
@@ -237,14 +238,14 @@ def handle(args):
             parts = cmd.split(maxsplit=1)
             if len(parts) < 2:
                 print("Usage: /explain path/to/file.py:10-25")
-                continue
+                return True
                 
             target = parts[1]
             extracted = CodeExtractor.parse_and_extract(target)
             
             if extracted.get('error'):
                 print(f"[!] {extracted['error']}")
-                continue
+                return True
                 
             code = extracted['code']
             file_path = extracted['file_path']
@@ -267,7 +268,7 @@ def handle(args):
                 provider = ProviderFactory.create()
             except Exception as e:
                 print(f"[!] Provider Error: {e}")
-                continue
+                return True
                 
             with Spinner(f"Thinking ({provider.__class__.__name__})..."):
                 try:
@@ -287,14 +288,14 @@ def handle(args):
             goal = cmd[6:].strip()
             if not goal:
                 print("Usage: /plan <your goal here>")
-                continue
+                return True
                 
             from nexa.core.ai.planner import AIPlannerEngine, PlannerContext
             
             # Gather context
             facts = facts_manager.get_all(cwd)
             pins = pins_manager.get_all(cwd)
-            past_messages = memory_manager.load_session_messages(current_session_id, limit=6)
+            past_messages = memory_manager.load_session_messages(runtime.session_id, limit=6)
             
             planner_context = PlannerContext(
                 project_path=cwd,
@@ -381,7 +382,7 @@ def handle(args):
             else:
                 print("\n=== Past Chat Sessions ===")
                 for sid, created_at, msg_count in sessions:
-                    marker = " (Active)" if sid == current_session_id else ""
+                    marker = " (Active)" if sid == runtime.session_id else ""
                     print(f"  [{sid}] {created_at} - {msg_count} messages{marker}")
                 print("==========================\n")
                 
@@ -391,12 +392,11 @@ def handle(args):
                 print("Usage: /load <session_id>")
             else:
                 target_id = int(parts[1])
-                current_session_id = target_id
-                print(f"[*] Loaded chat session ID: {current_session_id}")
+                runtime.session_id = target_id
+                print(f"[*] Loaded chat session ID: {runtime.session_id}")
                 
         elif cmd.lower() == "/clear":
-            current_session_id = memory_manager.create_session(cwd)
-            print(f"[*] Memory cleared. Started new session (ID: {current_session_id})")
+            print(f"[*] Memory cleared. Started new session (ID: {runtime.session_id})")
             
         elif cmd.startswith("/"):
             print(f"[!] Unknown command: {cmd}")
@@ -449,9 +449,9 @@ def handle(args):
                                     clean_path = full_path
                                     found = True
                                     print(f"[*] Fuzzy Finder: Auto-corrected path to `{clean_path}`")
-                                    break
+                                    return False
                             if found:
-                                break
+                                return False
                     
                     if os.path.exists(clean_path):
                         if os.path.isfile(clean_path):
@@ -466,7 +466,7 @@ def handle(args):
                                     resolved_count = 0
                                     for target, rel_type in deps:
                                         if resolved_count >= 3:
-                                            break
+                                            return False
                                         resolved_path = resolver.resolve_python_import(target, clean_path)
                                         if resolved_path and resolved_path != clean_path and os.path.exists(resolved_path):
                                             # Interactive Permission Prompt
@@ -501,8 +501,13 @@ def handle(args):
                 router_provider = ProviderFactory.create()
                 intent_sys = (
                     "You are an Intent Classifier for an AI assistant. "
-                    "If the user asks to CREATE, BUILD, REFACTOR, MODIFY, or DELETE code/files, output ONLY the word 'PLAN'. "
-                    "If the user is just asking a question, asking for an explanation, or chatting, output ONLY the word 'CHAT'."
+                    "Classify the user's input into one of these EXACT categories:\n"
+                    "- 'PLAN COMMIT' (If user wants to create a commit or git push)\n"
+                    "- 'PLAN REFACTOR' (If user wants to refactor or restructure code)\n"
+                    "- 'PLAN BUGFIX' (If user wants to fix an error or bug)\n"
+                    "- 'PLAN' (If user wants general code creation/modification)\n"
+                    "- 'CHAT' (If user is just asking a question or chatting)\n"
+                    "Output ONLY the category name."
                 )
                 with Spinner("Classifying Intent..."):
                     raw_intent = router_provider.generate([
@@ -514,13 +519,24 @@ def handle(args):
                 intent_str = "CHAT"
                 
             if "PLAN" in intent_str:
+                from nexa.core.ai.context.registry import ContextProviderRegistry
+                registry = ContextProviderRegistry()
+                auto_context = registry.resolve(intent_str, cwd)
+                
+                # Gabungkan context teks manual (dari @file) dengan auto_context
+                final_context = ""
+                if context_texts:
+                    final_context += "\n\n".join(context_texts) + "\n\n"
+                if auto_context:
+                    final_context += auto_context
+                    
                 from nexa.core.ai.planner import AIPlannerEngine, PlannerContext
                 planner_context = PlannerContext(
                     project_path=cwd,
-                    knowledge_context="\n\n".join(context_texts) if context_texts else "",
+                    knowledge_context=final_context,
                     project_facts=facts_manager.get_all(cwd),
                     pinned_memory=pins_manager.get_all(cwd),
-                    conversation_memory=memory_manager.load_session_messages(current_session_id, limit=6),
+                    conversation_memory=memory_manager.load_session_messages(runtime.session_id, limit=6),
                     user_goal=cmd
                 )
                 planner = AIPlannerEngine()
@@ -530,11 +546,29 @@ def handle(args):
                     GREEN = '\033[92m'
                     RESET = '\033[0m'
                     print(f"\n{GREEN}{report.to_markdown()}{RESET}\n")
-                    memory_manager.save_message(current_session_id, "user", final_prompt)
-                    memory_manager.save_message(current_session_id, "assistant", "[Execution Plan Generated]")
+                    
+                    # TRIGGER APPROVAL WORKFLOW
+                    from nexa.core.events.bus import EventContext
+                    from nexa.core.models.enums import EventPriority
+                    import datetime
+                    runtime.bus.publish(EventContext(
+                        event_name="BeforeApproval",
+                        timestamp=datetime.datetime.now().isoformat(),
+                        source="AIPlannerEngine",
+                        priority=EventPriority.HIGH,
+                        session_id=runtime.session_id,
+                        payload={
+                            "files": report.plan.get("affected_files", []) if isinstance(report.plan, dict) else [],
+                            "risk": report.plan.get("risk", "UNKNOWN") if isinstance(report.plan, dict) else "UNKNOWN",
+                            "plan": report.plan
+                        }
+                    ))
+                    
+                    memory_manager.save_message(runtime.session_id, "user", final_prompt)
+                    memory_manager.save_message(runtime.session_id, "assistant", "[Execution Plan Generated]")
                 else:
                     print(f"\n[!] Planning Failed: {report.error_message}\n")
-                continue
+                return True
             # --- END OF INTENT CLASSIFIER ---
 
             if context_texts:
@@ -542,10 +576,10 @@ def handle(args):
                 final_prompt = f"The user mentions the following files/directories for context:\n{context_joined}\n\nUser Message:\n{cmd}"
             
             # Save user message to memory
-            memory_manager.save_message(current_session_id, "user", final_prompt)
+            memory_manager.save_message(runtime.session_id, "user", final_prompt)
             
             # Load rolling window memory
-            past_messages = memory_manager.load_session_messages(current_session_id, limit=6)
+            past_messages = memory_manager.load_session_messages(runtime.session_id, limit=6)
             
             # Phase 2.11: Inject Facts and Pins
             facts = facts_manager.get_all(cwd)
@@ -585,7 +619,7 @@ def handle(args):
                     content = raw_resp.get("content", "") if isinstance(raw_resp, dict) else str(raw_resp)
                 
                 # Save AI response to memory
-                memory_manager.save_message(current_session_id, "assistant", content)
+                memory_manager.save_message(runtime.session_id, "assistant", content)
                 last_ai_response = content
                 
                 # Print AI response in Cyan color
@@ -595,3 +629,7 @@ def handle(args):
                 
             except Exception as e:
                 print(f"[!] Chat Error: {e}\n")
+
+        return True
+
+    runtime.start_loop(get_input, command_handler)
