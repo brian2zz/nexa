@@ -31,11 +31,14 @@ class PlanValidator:
         except json.JSONDecodeError as e:
             return False, f"Failed to parse JSON: {str(e)}\nRaw output: {raw_text}", None
             
-        # Required fields check
-        required_keys = ['goal', 'summary', 'execution_steps']
+        # Required fields check (execution_steps is optional for purely informational queries)
+        required_keys = ['goal', 'summary']
         missing = [k for k in required_keys if k not in data]
         if missing:
-            return False, f"JSON missing required fields: {', '.join(missing)}", None
+            return False, f"JSON missing required fields: {', '.join(missing)}\nFound keys: {list(data.keys())}\nRaw data: {data}", None
+            
+        if 'execution_steps' not in data:
+            data['execution_steps'] = []
             
         try:
             plan = ExecutionPlan.from_dict(data)

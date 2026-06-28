@@ -75,14 +75,27 @@ class GeminiProvider(LLMProvider):
                 payload["tools"] = [{"functionDeclarations": function_declarations}]
         
         try:
-            response = requests.post(url, headers=headers, json=payload, timeout=60)
-            
-            if response.status_code == 400:
-                raise Exception(f"Bad Request: {response.text}")
-            elif response.status_code == 401 or response.status_code == 403:
-                raise Exception("Unauthorized: Invalid Gemini API Key.")
+            import time
+            max_retries = 4
+            for attempt in range(max_retries):
+                response = requests.post(url, headers=headers, json=payload, timeout=60)
                 
-            response.raise_for_status()
+                if response.status_code == 429:
+                    if attempt < max_retries - 1:
+                        sleep_time = 2 ** (attempt + 1)
+                        print(f"       [API Limit Reached] Waiting {sleep_time}s before retrying...")
+                        time.sleep(sleep_time)
+                        continue
+                    else:
+                        raise Exception("429 Too Many Requests: Rate limit exceeded after retries. Please wait a minute.")
+                elif response.status_code == 400:
+                    raise Exception(f"Bad Request: {response.text}")
+                elif response.status_code == 401 or response.status_code == 403:
+                    raise Exception("Unauthorized: Invalid Gemini API Key.")
+                    
+                response.raise_for_status()
+                break
+                
             data = response.json()
             
             candidates = data.get("candidates", [])

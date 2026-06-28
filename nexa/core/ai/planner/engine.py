@@ -41,9 +41,10 @@ class AIPlannerEngine:
             
         prompt += (
             "\nEXPECTED OUTPUT FORMAT (JSON ONLY):\n"
+            "You MUST return a JSON object with at least the 'goal' and 'summary' fields.\n"
             "{\n"
-            "  \"goal\": \"string\",\n"
-            "  \"summary\": \"string\",\n"
+            "  \"goal\": \"string (Describe what you were asked to do)\",\n"
+            "  \"summary\": \"string (Provide your detailed final answer, search results, or findings here)\",\n"
             "  \"complexity\": \"low|medium|high\",\n"
             "  \"estimated_time\": \"string\",\n"
             "  \"risk\": \"string\",\n"

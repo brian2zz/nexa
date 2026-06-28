@@ -8,7 +8,7 @@ class NexaMentionCompleter(Completer):
         self.file_completer = PathCompleter(only_directories=False, expanduser=True)
         
         # We also provide completions for the explicit prefixes
-        self.prefix_completer = WordCompleter(['@directory:', '@file:', '@code:'], ignore_case=True)
+        self.prefix_completer = WordCompleter(['@directory:', '@file:', '@code:', '@search:'], ignore_case=True)
 
     def get_completions(self, document: Document, complete_event):
         word_before_cursor = document.get_word_before_cursor(WORD=True)
@@ -20,7 +20,7 @@ class NexaMentionCompleter(Completer):
 
         if word_before_cursor.startswith('@'):
             # If they just typed "@" or a partial prefix, suggest @directory:, @file:, etc.
-            if len(word_before_cursor) <= 1 or word_before_cursor in ('@directory', '@file', '@code', '@d', '@f', '@c'):
+            if len(word_before_cursor) <= 1 or word_before_cursor in ('@directory', '@file', '@code', '@search', '@d', '@f', '@c', '@s'):
                 yield from self.prefix_completer.get_completions(document, complete_event)
             
             if word_before_cursor.startswith('@directory:'):

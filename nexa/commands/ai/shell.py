@@ -473,6 +473,28 @@ def handle(args):
             summarizer = RegexSummarizer()
             
             for word in words:
+                if word.startswith('@search:'):
+                    query = word[8:].replace('_', ' ')
+                    import subprocess
+                    print(f"[*] Native Search: Scanning project for `{query}`...")
+                    try:
+                        result = subprocess.run(
+                            ['findstr', '/S', '/I', '/N', '/C:' + query, os.path.join(cwd, '*.*')],
+                            capture_output=True, text=True, timeout=15
+                        )
+                        if result.stdout:
+                            lines = result.stdout.split('\n')
+                            if len(lines) > 50:
+                                search_res = "\n".join(lines[:50]) + "\n... (TRUNCATED)"
+                            else:
+                                search_res = result.stdout
+                            context_texts.append(f"--- NATIVE SEARCH RESULTS FOR '{query}' ---\n{search_res}\n--- END SEARCH RESULTS ---")
+                        else:
+                            context_texts.append(f"--- NATIVE SEARCH RESULTS FOR '{query}' ---\nNo matches found in project.\n--- END SEARCH RESULTS ---")
+                    except Exception as e:
+                        print(f"[!] Native Search Error: {e}")
+                    continue
+                    
                 if word.startswith('@'):
                     # Strip prefixes if any
                     clean_path = word
@@ -558,8 +580,8 @@ def handle(args):
                     "- 'PLAN COMMIT' (If user wants to create a commit or git push)\n"
                     "- 'PLAN REFACTOR' (If user wants to refactor or restructure code)\n"
                     "- 'PLAN BUGFIX' (If user wants to fix an error or bug)\n"
-                    "- 'PLAN' (If user wants general code creation/modification)\n"
-                    "- 'CHAT' (If user is just asking a question or chatting)\n"
+                    "- 'PLAN' (If user wants code creation/modification, OR asks a question about the codebase like 'where is X' or 'how does Y work' that requires searching)\n"
+                    "- 'CHAT' (ONLY if user is just chatting casually, saying hi, or asking general concepts unrelated to the local codebase)\n"
                     "Output ONLY the category name."
                 )
                 with Spinner("Classifying Intent..."):
@@ -568,7 +590,11 @@ def handle(args):
                         {"role": "user", "content": cmd}
                     ])
                     intent_str = (raw_intent.get("content", "") if isinstance(raw_intent, dict) else str(raw_intent)).strip().upper()
-            except Exception:
+            except Exception as e:
+                if "429" in str(e):
+                    print("\n[!] \033[91m🚨 Gemini API Limit Terlampaui (429 Too Many Requests).\033[0m")
+                    print("[!] Harap istirahat sekitar 1 menit sebelum bertanya lagi, atau pindah ke model lokal: \033[93m/select-provider ollama\033[0m\n")
+                    return True
                 intent_str = "CHAT"
                 
             if "PLAN" in intent_str:
@@ -627,7 +653,11 @@ def handle(args):
                         memory_manager.save_message(runtime.session_id, "user", final_prompt)
                         memory_manager.save_message(runtime.session_id, "assistant", "[Execution Plan Generated]")
                 else:
-                    print(f"\n[!] Planning Failed: {report.error_message}\n")
+                    if "429" in report.error_message:
+                        print("\n[!] \033[91m🚨 Gemini API Limit Terlampaui (429 Too Many Requests) saat melakukan Search/Plan.\033[0m")
+                        print("[!] Harap tunggu sekitar 1 menit, ATAU gunakan jalan pintas \033[93m@search:<kata_kunci>\033[0m untuk menghemat kuota limit.\n")
+                    else:
+                        print(f"\n[!] Planning Failed: {report.error_message}\n")
                 return True
             # --- END OF INTENT CLASSIFIER ---
 
@@ -688,7 +718,11 @@ def handle(args):
                 print(f"\n{CYAN}{content}{RESET}\n")
                 
             except Exception as e:
-                print(f"[!] Chat Error: {e}\n")
+                if "429" in str(e):
+                    print("\n[!] \033[91m🚨 Gemini API Limit Terlampaui (429 Too Many Requests).\033[0m")
+                    print("[!] Harap tunggu sekitar 1 menit, atau pindah ke model lokal: \033[93m/select-provider ollama\033[0m\n")
+                else:
+                    print(f"[!] Chat Error: {e}\n")
 
         return True
 
