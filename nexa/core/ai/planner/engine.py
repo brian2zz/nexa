@@ -60,7 +60,11 @@ class AIPlannerEngine:
             "  \"recommendations\": [\"string\"],\n"
             "  \"rollback_strategy\": \"string\",\n"
             "  \"confidence\": 1-100\n"
-            "}\n"
+            "}\n\n"
+            "CRITICAL RULES FOR TOOLS:\n"
+            "1. DO NOT invent or call any tools that are not explicitly provided in the tool schemas.\n"
+            "2. If you need to execute a terminal command (e.g., 'git push', 'git pull', 'npm install'), DO NOT try to call a tool for it. Instead, include it as an execution_step with action='command' and target='command_string' in your final JSON plan.\n"
+            "3. If you have gathered enough information, immediately return the JSON.\n"
             "\nCRITICAL INSTRUCTION: Return ONLY the raw JSON object. Do not wrap it in markdown code blocks if possible, or if you do, ensure it is ONLY valid JSON."
         )
         return prompt

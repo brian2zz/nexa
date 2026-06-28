@@ -45,9 +45,12 @@ class NexaAgentRuntime:
         self.approval_ui = ApprovalUI(self.bus)
         self.bus.subscribe("BeforeApproval", self.approval_ui.handle_before_approval)
         
-        # Inisialisasi Execution Transaction (Sprint 7 / Fase 5)
         def handle_approval_granted(context):
+            import dataclasses
             plan = context.payload.get("plan", {})
+            if dataclasses.is_dataclass(plan):
+                plan = dataclasses.asdict(plan)
+                
             if not plan:
                 print("[!] Execution dibatalkan: Tidak ada plan yang diterima.")
                 return

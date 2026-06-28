@@ -558,8 +558,8 @@ def handle(args):
                         priority=EventPriority.HIGH,
                         session_id=runtime.session_id,
                         payload={
-                            "files": report.plan.get("affected_files", []) if isinstance(report.plan, dict) else [],
-                            "risk": report.plan.get("risk", "UNKNOWN") if isinstance(report.plan, dict) else "UNKNOWN",
+                            "files": getattr(report.plan, "affected_files", []) if not isinstance(report.plan, dict) else report.plan.get("affected_files", []),
+                            "risk": getattr(report.plan, "risk", "UNKNOWN") if not isinstance(report.plan, dict) else report.plan.get("risk", "UNKNOWN"),
                             "plan": report.plan
                         }
                     ))
