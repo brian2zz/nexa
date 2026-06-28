@@ -25,7 +25,7 @@ class PatchEngine:
             elif action == "DELETE":
                 patches.append(PatchResult(target=target, action=action))
             elif action == "COMMAND":
-                patches.append(PatchResult(target=target, action=action, command=tr.step.get("description", "")))
+                patches.append(PatchResult(target=target, action=action, command=target))
                 
         return patches
 

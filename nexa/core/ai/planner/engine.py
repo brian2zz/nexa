@@ -143,11 +143,16 @@ class AIPlannerEngine:
                     "tool_calls": tool_calls
                 })
                 
+                break_outer = False
                 for tc in tool_calls:
                     func_name = tc.get("function", {}).get("name")
                     args_str = tc.get("function", {}).get("arguments", "{}")
                     try:
                         args = json.loads(args_str)
+                        if func_name == "submit_execution_plan":
+                            content = args.get("plan_json", "")
+                            break_outer = True
+                            break
                         result = tool_registry.execute(func_name, **args)
                     except Exception as e:
                         result = f"Error executing {func_name}: {e}"
@@ -159,6 +164,8 @@ class AIPlannerEngine:
                         "content": str(result)
                     })
                     
+                if break_outer:
+                    break
             except Exception as e:
                 error_msg = f"Generation Error: {e}"
                 if self.bus:
