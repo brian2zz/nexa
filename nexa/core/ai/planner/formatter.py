@@ -13,13 +13,18 @@ class PlanFormatter:
             "summary": plan.summary,
             "complexity": plan.complexity,
             "estimated_time": plan.estimated_time,
-            "risk": plan.risk,
+            "estimated_time": plan.estimated_time,
             "affected_modules": plan.affected_modules,
             "affected_files": plan.affected_files,
             "files_to_create": plan.files_to_create,
             "files_to_modify": plan.files_to_modify,
             "dependencies": plan.dependencies,
-            "execution_steps": [{"action": s.action, "target": s.target, "description": s.description} for s in plan.execution_steps],
+            "stages": [
+                {
+                    "name": stage.name,
+                    "intents": [{"action": i.action, "parameters": i.parameters, "description": i.description} for i in stage.intents]
+                } for stage in plan.stages
+            ],
             "verification_steps": plan.verification_steps,
             "warnings": plan.warnings,
             "recommendations": plan.recommendations,
@@ -29,11 +34,12 @@ class PlanFormatter:
         return json.dumps(data, indent=2 if pretty else None)
 
     def to_markdown(self, plan: ExecutionPlan) -> str:
-        md = f"## Execution Plan: {plan.goal}\n\n"
-        md += f"**Summary:** {plan.summary}\n\n"
+        md = f"## {plan.goal}\n\n"
+        md += f"{plan.summary}\n\n"
+        
+        md += f"### Metadata\n"
         md += f"- **Complexity:** {plan.complexity}\n"
         md += f"- **Estimated Time:** {plan.estimated_time}\n"
-        md += f"- **Risk:** {plan.risk}\n"
         md += f"- **Confidence:** {plan.confidence}%\n\n"
         
         if plan.files_to_create:
@@ -48,9 +54,12 @@ class PlanFormatter:
                 md += f"- `{f}`\n"
             md += "\n"
             
-        md += "### 🚀 Execution Steps\n"
-        for i, step in enumerate(plan.execution_steps, 1):
-            md += f"{i}. **[{step.action.upper()}]** `{step.target}` - {step.description}\n"
+        md += "### 🚀 Execution Stages\n"
+        for i, stage in enumerate(plan.stages, 1):
+            md += f"#### Stage {i}: {stage.name}\n"
+            for j, intent in enumerate(stage.intents, 1):
+                params_str = ", ".join(f"{k}={v}" for k, v in intent.parameters.items())
+                md += f"  {j}. **[{intent.action.upper()}]** `{params_str}` - {intent.description}\n"
             
         if plan.warnings:
             md += "\n### ⚠️ Warnings\n"

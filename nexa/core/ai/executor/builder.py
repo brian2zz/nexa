@@ -13,27 +13,36 @@ class AIExecutor:
     def execute(self, plan: ExecutionPlan, context: PlannerContext):
         print(f"\n[*] Starting Execution of: {plan.goal}")
         
-        for step in plan.execution_steps:
-            if step.action.lower() in ["create", "modify"]:
-                target_path = os.path.join(context.project_path, step.target)
+        for stage in getattr(plan, 'stages', []):
+            for intent in stage.intents:
+                # Basic mapping for backward compatibility during transition
+                action = intent.action.lower()
+                target = intent.parameters.get("target", intent.parameters.get("path", ""))
+                description = intent.description
                 
-                # Make sure directory exists
-                os.makedirs(os.path.dirname(target_path), exist_ok=True)
+                if action in ["create", "modify"]:
+                    if not target:
+                        continue
+                        
+                    target_path = os.path.join(context.project_path, target)
+                    
+                    # Make sure directory exists
+                    os.makedirs(os.path.dirname(target_path), exist_ok=True)
+                    
+                    with Spinner(f"[{action.upper()}] Generating code for {target}..."):
+                        code = self.generator.generate_file(plan, context, target, description)
+                    
+                    if code:
+                        try:
+                            with open(target_path, 'w', encoding='utf-8') as f:
+                                f.write(code)
+                            print(f"  [+] {target} written successfully.")
+                        except Exception as e:
+                            print(f"  [!] Failed to write {target}: {e}")
+                    else:
+                        print(f"  [!] Generator returned empty code for {target}")
                 
-                with Spinner(f"[{step.action.upper()}] Generating code for {step.target}..."):
-                    code = self.generator.generate_file(plan, context, step.target, step.description)
-                
-                if code:
-                    try:
-                        with open(target_path, 'w', encoding='utf-8') as f:
-                            f.write(code)
-                        print(f"  [+] {step.target} written successfully.")
-                    except Exception as e:
-                        print(f"  [!] Failed to write {step.target}: {e}")
-                else:
-                    print(f"  [!] Generator returned empty code for {step.target}")
-            
-            elif step.action.lower() == "command":
-                print(f"  [*] Skipping shell command for security: {step.target}")
+                elif action == "terminal_command":
+                    print(f"  [*] Terminal command execution is delegated to the ExecutionLayer.")
             
         print("[*] Execution Complete!\n")

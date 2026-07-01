@@ -1,90 +1,76 @@
-import os
+from nexa.core.agent.tools.knowledge.file import FileTool
+from nexa.core.agent.tools.knowledge.search import SearchTool
+from nexa.core.agent.tools.models import ToolMetadata
 
-def read_file(filepath: str) -> str:
-    """Membaca isi file (Read-Only)."""
-    try:
-        with open(filepath, 'r', encoding='utf-8') as f:
-            return f.read()
-    except Exception as e:
-        return f"Error reading file: {e}"
-
-def list_directory(path: str = ".") -> str:
-    """Melihat isi direktori (Read-Only)."""
-    try:
-        return "\n".join(os.listdir(path))
-    except Exception as e:
-        return f"Error listing directory: {e}"
-
-def search_code(query: str, path: str = ".") -> str:
-    """Mencari string/pattern dalam file-file di direktori."""
-    import subprocess
-    try:
-        result = subprocess.run(
-            ['findstr', '/S', '/I', '/N', '/C:' + query, os.path.join(path, '*.*')],
-            capture_output=True, text=True, timeout=15
-        )
-        if result.stdout:
-            # Batasi output agar tidak menghabiskan token
-            lines = result.stdout.split('\n')
-            if len(lines) > 50:
-                return "\n".join(lines[:50]) + "\n... (TRUNCATED)"
-            return result.stdout
-        return "No matches found."
-    except Exception as e:
-        return f"Error searching code: {e}"
-
-# Schemas for LLM
-READ_FILE_SCHEMA = {
-    "type": "function",
-    "function": {
-        "name": "read_file",
-        "description": "Read the contents of a file. Use this to understand the code.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "filepath": {"type": "string", "description": "Absolute or relative path to the file"}
-            },
-            "required": ["filepath"]
-        }
-    }
-}
-
-LIST_DIR_SCHEMA = {
-    "type": "function",
-    "function": {
-        "name": "list_directory",
-        "description": "List all files and folders in a directory.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "path": {"type": "string", "description": "Path to the directory"}
-            },
-            "required": ["path"]
-        }
-    }
-}
-
-SEARCH_CODE_SCHEMA = {
-    "type": "function",
-    "function": {
-        "name": "search_code",
-        "description": "Search for a specific string, function name, or variable across all files in the project. Use this to find where things are defined or used.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "query": {"type": "string", "description": "The string or pattern to search for"},
-                "path": {"type": "string", "description": "Directory to search in (default is current directory '.')"}
-            },
-            "required": ["query"]
-        }
-    }
-}
-
-def register_knowledge_tools(registry, cwd: str = None):
-    registry.register("read_file", read_file, READ_FILE_SCHEMA)
-    registry.register("list_directory", list_directory, LIST_DIR_SCHEMA)
-    registry.register("search_code", search_code, SEARCH_CODE_SCHEMA)
+def register_knowledge_tools(registry, cwd: str):
+    file_tool = FileTool(workspace_path=cwd)
+    search_tool = SearchTool(workspace_path=cwd)
     
+    # We expose the domain capabilities to the Planner (KnowledgeRequest)
+    # The actual execution happens via these schemas
+    
+    registry.register(
+        "file_lookup",
+        file_tool.find,
+        schema={
+            "type": "function",
+            "function": {
+                "name": "file_lookup",
+                "description": "Find files by extension or name quickly.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "extension": {"type": "string", "description": "The file extension to search for, e.g., '.php'"},
+                        "name": {"type": "string", "description": "The file name to search for"}
+                    },
+                    "required": ["extension"]
+                }
+            }
+        },
+        metadata=ToolMetadata(name="file_lookup", cost=1, latency="fast", category="file", read_only=True, priority=100, capabilities=["file_lookup", "find_file", "search_file"])
+    )
+
+    registry.register(
+        "file_read",
+        file_tool.read,
+        schema={
+            "type": "function",
+            "function": {
+                "name": "file_read",
+                "description": "Read contents of a specific file.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "filepath": {"type": "string"}
+                    },
+                    "required": ["filepath"]
+                }
+            }
+        },
+        metadata=ToolMetadata(name="file_read", cost=5, latency="medium", category="file", read_only=True, priority=90, capabilities=["read_file", "view_file"])
+    )
+
+    registry.register(
+        "content_search",
+        search_tool.text,
+        schema={
+            "type": "function",
+            "function": {
+                "name": "content_search",
+                "description": "Search for text content inside files.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string"},
+                        "path": {"type": "string"}
+                    },
+                    "required": ["query"]
+                }
+            }
+        },
+        metadata=ToolMetadata(name="content_search", cost=10, latency="slow", category="search", read_only=True, priority=80, capabilities=["content_search", "search_code"])
+    )
+
     # Register Git tools if cwd is provided
     if cwd:
         from .git import register_git_tools

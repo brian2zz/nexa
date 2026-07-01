@@ -1,6 +1,6 @@
 import time
 from enum import Enum
-from typing import List, Any
+from typing import List, Any, Tuple
 from nexa.core.pipeline.transformation import TransformationEngine, TransformationResult
 from nexa.core.pipeline.patch import PatchEngine, PatchApplier, PatchResult
 from nexa.core.pipeline.command import TerminalRunner
@@ -34,7 +34,7 @@ class ExecutionTransaction:
         self.rollback_strategy = BackupRollbackStrategy(cwd=cwd)
         self.verification_pipeline = VerificationPipeline(cwd=cwd)
         
-    def execute(self) -> bool:
+    def execute(self) -> Tuple[bool, str]:
         print("\n[Transaction] Memulai transaksi eksekusi...")
         
         try:
@@ -51,7 +51,7 @@ class ExecutionTransaction:
             if files_to_modify:
                 if not self.rollback_strategy.backup(files_to_modify):
                     self.state = TransactionState.FAILED
-                    return False
+                    return False, "Gagal membuat backup."
             self.state = TransactionState.BACKUP_CREATED
             
             # 3. Apply Patch
@@ -60,7 +60,7 @@ class ExecutionTransaction:
                 if patch.action in ["CREATE", "MODIFY", "DELETE"]:
                     if not self.patch_applier.apply(patch):
                         self._trigger_rollback("Gagal menerapkan patch")
-                        return False
+                        return False, f"Gagal menerapkan patch pada file {patch.target}"
             self.state = TransactionState.PATCH_APPLIED
             
             # 4. Execute Commands
@@ -70,7 +70,7 @@ class ExecutionTransaction:
                     success, msg = self.terminal_runner.execute(patch.command)
                     if not success:
                         self._trigger_rollback(f"Command gagal: {msg}")
-                        return False
+                        return False, f"Terminal command failed: {patch.command}\nError: {msg}"
             self.state = TransactionState.COMMAND_EXECUTED
             
             # 5. Verify
@@ -78,18 +78,18 @@ class ExecutionTransaction:
             success, msg = self.verification_pipeline.run_all()
             if not success:
                 self._trigger_rollback(f"Verifikasi gagal: {msg}")
-                return False
+                return False, f"Verification failed: {msg}"
             self.state = TransactionState.VERIFIED
             
             # 6. Commit
             print("[Transaction] [SUCCESS] Transaksi berhasil! Membersihkan backup...")
             self.rollback_strategy.commit()
             self.state = TransactionState.COMMITTED
-            return True
+            return True, ""
             
         except Exception as e:
             self._trigger_rollback(f"Unexpected Error: {e}")
-            return False
+            return False, f"Unexpected Transaction Error: {e}"
             
     def _trigger_rollback(self, reason: str):
         print(f"\n[!] Transaksi Gagal ({reason}). Melakukan Rollback...")

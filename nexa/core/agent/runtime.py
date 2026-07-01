@@ -56,7 +56,53 @@ class NexaAgentRuntime:
                 return
             from nexa.core.pipeline.transaction import ExecutionTransaction
             transaction = ExecutionTransaction(self.cwd, plan)
-            transaction.execute()
+            success, error_msg = transaction.execute()
+            
+            if not success:
+                print(f"\n[!] Memicu Auto-Recovery Nexa karena kegagalan eksekusi...")
+                recovery_prompt = (
+                    f"The previous Execution Plan failed during transaction with the following error:\n{error_msg}\n\n"
+                    f"Please analyze why it failed and generate a revised Execution Plan to fix the issue."
+                )
+                
+                from nexa.core.ai.planner import AIPlannerEngine, PlannerContext
+                from nexa.core.utils.spinner import Spinner
+                import datetime
+                from nexa.core.models.enums import EventPriority
+                from nexa.core.events.bus import EventContext
+                
+                # Fetch limited context for recovery
+                planner_context = PlannerContext(
+                    project_path=self.cwd,
+                    knowledge_context="",
+                    project_facts={},
+                    pinned_memory=[],
+                    conversation_memory=self.memory.load_session_messages(self.session_id, limit=4),
+                    user_goal=recovery_prompt
+                )
+                
+                planner = AIPlannerEngine()
+                with Spinner("Self-Healing: Regenerating Plan..."):
+                    report = planner.plan(planner_context)
+                    
+                if report.success:
+                    GREEN = '\033[92m'
+                    RESET = '\033[0m'
+                    print(f"\n{GREEN}{report.to_markdown()}{RESET}\n")
+                    
+                    self.bus.publish(EventContext(
+                        event_name="BeforeApproval",
+                        timestamp=datetime.datetime.now().isoformat(),
+                        source="AutoRecovery",
+                        priority=EventPriority.HIGH,
+                        session_id=self.session_id,
+                        payload={
+                            "files": getattr(report.plan, "affected_files", []) if not isinstance(report.plan, dict) else report.plan.get("affected_files", []),
+                            "plan": report.plan
+                        }
+                    ))
+                else:
+                    print(f"\n[!] Auto-Recovery Failed: {report.error_message}\n")
             
         self.bus.subscribe("ApprovalGranted", handle_approval_granted)
         # Inisialisasi Workspace Manager (Sprint 5)

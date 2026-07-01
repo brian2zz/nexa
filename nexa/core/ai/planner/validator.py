@@ -27,7 +27,7 @@ class PlanValidator:
         """
         json_str = self.extract_json(raw_text)
         try:
-            data = json.loads(json_str)
+            data = json.loads(json_str, strict=False)
         except json.JSONDecodeError as e:
             return False, f"Failed to parse JSON: {str(e)}\nRaw output: {raw_text}", None
             
@@ -37,8 +37,8 @@ class PlanValidator:
         if missing:
             return False, f"JSON missing required fields: {', '.join(missing)}\nFound keys: {list(data.keys())}\nRaw data: {data}", None
             
-        if 'execution_steps' not in data:
-            data['execution_steps'] = []
+        if 'stages' not in data:
+            data['stages'] = []
             
         try:
             plan = ExecutionPlan.from_dict(data)

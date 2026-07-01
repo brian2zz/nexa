@@ -20,7 +20,19 @@ class TransformationEngine:
 
     def transform(self, plan: Dict[str, Any]) -> List[TransformationResult]:
         results = []
-        steps = plan.get("execution_steps", [])
+        steps = []
+        for stage in plan.get("stages", []):
+            for intent in stage.get("intents", []):
+                # Map IntentNode back to legacy dict format for TransformationResult
+                target = intent.get("parameters", {}).get("target") or \
+                         intent.get("parameters", {}).get("path") or \
+                         intent.get("parameters", {}).get("command") or ""
+                         
+                steps.append({
+                    "action": intent.get("action", ""),
+                    "target": target,
+                    "description": intent.get("description", "")
+                })
         
         for step in steps:
             action = step.get("action", "").upper()

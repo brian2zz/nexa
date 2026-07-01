@@ -592,7 +592,7 @@ def handle(args):
                     intent_str = (raw_intent.get("content", "") if isinstance(raw_intent, dict) else str(raw_intent)).strip().upper()
             except Exception as e:
                 if "429" in str(e):
-                    print("\n[!] \033[91m🚨 Gemini API Limit Terlampaui (429 Too Many Requests).\033[0m")
+                    print("\n[!] \033[91m🚨 API Limit Terlampaui (429 Too Many Requests).\033[0m")
                     print("[!] Harap istirahat sekitar 1 menit sebelum bertanya lagi, atau pindah ke model lokal: \033[93m/select-provider ollama\033[0m\n")
                     return True
                 intent_str = "CHAT"
@@ -625,9 +625,9 @@ def handle(args):
                     GREEN = '\033[92m'
                     RESET = '\033[0m'
                     print(f"\n{GREEN}{report.to_markdown()}{RESET}\n")
-                    execution_steps = getattr(report.plan, "execution_steps", []) if not isinstance(report.plan, dict) else report.plan.get("execution_steps", [])
+                    stages = getattr(report.plan, "stages", []) if not isinstance(report.plan, dict) else report.plan.get("stages", [])
                     
-                    if not execution_steps:
+                    if not stages:
                         # LLM hanya melakukan investigasi (Search & Answer)
                         memory_manager.save_message(runtime.session_id, "user", final_prompt)
                         summary_text = getattr(report.plan, "summary", "") if not isinstance(report.plan, dict) else report.plan.get("summary", "")
@@ -645,7 +645,6 @@ def handle(args):
                             session_id=runtime.session_id,
                             payload={
                                 "files": getattr(report.plan, "affected_files", []) if not isinstance(report.plan, dict) else report.plan.get("affected_files", []),
-                                "risk": getattr(report.plan, "risk", "UNKNOWN") if not isinstance(report.plan, dict) else report.plan.get("risk", "UNKNOWN"),
                                 "plan": report.plan
                             }
                         ))
@@ -654,7 +653,7 @@ def handle(args):
                         memory_manager.save_message(runtime.session_id, "assistant", "[Execution Plan Generated]")
                 else:
                     if "429" in report.error_message:
-                        print("\n[!] \033[91m🚨 Gemini API Limit Terlampaui (429 Too Many Requests) saat melakukan Search/Plan.\033[0m")
+                        print("\n[!] \033[91m🚨 Provider API Limit Terlampaui (429 Too Many Requests) saat melakukan Search/Plan.\033[0m")
                         print("[!] Harap tunggu sekitar 1 menit, ATAU gunakan jalan pintas \033[93m@search:<kata_kunci>\033[0m untuk menghemat kuota limit.\n")
                     else:
                         print(f"\n[!] Planning Failed: {report.error_message}\n")
@@ -719,7 +718,7 @@ def handle(args):
                 
             except Exception as e:
                 if "429" in str(e):
-                    print("\n[!] \033[91m🚨 Gemini API Limit Terlampaui (429 Too Many Requests).\033[0m")
+                    print("\n[!] \033[91m🚨 Provider API Limit Terlampaui (429 Too Many Requests).\033[0m")
                     print("[!] Harap tunggu sekitar 1 menit, atau pindah ke model lokal: \033[93m/select-provider ollama\033[0m\n")
                 else:
                     print(f"[!] Chat Error: {e}\n")

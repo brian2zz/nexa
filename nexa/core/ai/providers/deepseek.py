@@ -28,6 +28,9 @@ class DeepSeekProvider(LLMProvider):
             "stream": False
         }
         
+        if tools:
+            payload["tools"] = tools
+        
         try:
             response = requests.post(url, headers=headers, json=payload, timeout=60)
             
@@ -40,12 +43,15 @@ class DeepSeekProvider(LLMProvider):
             response.raise_for_status()
             data = response.json()
             
-            message_content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            message_dict = data.get("choices", [{}])[0].get("message", {})
+            message_content = message_dict.get("content", "")
+            tool_calls = message_dict.get("tool_calls", [])
             
             usage_data = data.get("usage", {})
             
             return {
                 "content": message_content,
+                "tool_calls": tool_calls,
                 "provider": "deepseek",
                 "model": self.model,
                 "usage": {

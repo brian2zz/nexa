@@ -53,8 +53,13 @@ class AIPlannerEngine:
             "  \"files_to_create\": [\"string\"],\n"
             "  \"files_to_modify\": [\"string\"],\n"
             "  \"dependencies\": [\"string\"],\n"
-            "  \"execution_steps\": [\n"
-            "    {\"action\": \"create|modify|delete|command\", \"target\": \"file/module/command\", \"description\": \"string\"}\n"
+            "  \"stages\": [\n"
+            "    {\n"
+            "      \"name\": \"string (e.g. Preparation, Execution, Verification)\",\n"
+            "      \"intents\": [\n"
+            "        {\"action\": \"string (e.g. git_commit, terminal_command)\", \"parameters\": {}, \"description\": \"string\"}\n"
+            "      ]\n"
+            "    }\n"
             "  ],\n"
             "  \"verification_steps\": [\"string\"],\n"
             "  \"warnings\": [\"string\"],\n"
@@ -64,14 +69,15 @@ class AIPlannerEngine:
             "}\n\n"
             "CRITICAL RULES FOR TOOLS:\n"
             "1. DO NOT invent or call any tools that are not explicitly provided in the tool schemas.\n"
-            "2. NEVER answer questions about the codebase from your internal knowledge. You MUST use 'search_code', 'list_directory', or 'read_file' tools to investigate the local project BEFORE providing an answer.\n"
-            "3. If the user asks where something is located (e.g. 'dimana create X', 'dimana fungsi Y'), DO NOT assume they want to execute a modification. Treat it as a QUESTION. Use 'search_code' to find it, put the result in the 'summary', and leave 'execution_steps' EMPTY ([]).\n"
-            "4. If you need to execute a terminal command (e.g., 'git push', 'git pull', 'npm install'), DO NOT try to call a tool for it. Instead, include it as an execution_step with action='command' and target='command_string' in your final JSON plan.\n"
-            "4. If the user is just asking a question (e.g. searching for a function), use the search_code tool to find it, put the answer in the 'summary', and leave 'execution_steps' EMPTY ([]). DO NOT invent invalid actions like 'SEARCH'.\n"
-            "5. When providing search results in the 'summary', format them beautifully like an advanced AI assistant: specify the exact File Path, Line Number, and include the actual Code Snippet using Markdown code blocks.\n"
-            "6. If you search for something and cannot find it, DO NOT hallucinate file names or locations. Explicitly state in the 'summary' that it is not found, and DO NOT add any execution steps to create it unless the user explicitly requested creation.\n"
-            "7. If you have gathered enough information, immediately return the JSON.\n"
-            "\nCRITICAL INSTRUCTION: Return ONLY the raw JSON object. Do not wrap it in markdown code blocks if possible, or if you do, ensure it is ONLY valid JSON."
+            "2. NEVER answer questions about the codebase from your internal knowledge. You MUST use the provided function tools ('file_lookup', 'content_search', or 'file_read') to investigate the local project BEFORE providing the final JSON answer.\n"
+            "3. If the user asks if a file exists (e.g. 'apakah ada file php'), you MUST call the 'file_lookup' function tool with the 'extension' parameter. Do NOT put 'file_lookup' in your intents.\n"
+            "4. If the user asks where a function/class is located, call the 'content_search' function tool. Put the results in the 'summary' and leave 'stages' EMPTY ([]).\n"
+            "5. If you need to execute a terminal command, include it as an intent with action='terminal_command' and parameters={\"command\": \"command_string\"}. IMPORTANT: Do NOT use shell redirect operators like >, >>, or | in terminal commands (e.g. do not use 'echo text >> file'). They are blocked. Use action='CREATE' or 'MODIFY' to write files.\n"
+            "6. When providing search results in the 'summary', format them beautifully like an advanced AI assistant: specify the exact File Path, Line Number, and include the actual Code Snippet using Markdown code blocks.\n"
+            "7. If you search for something and cannot find it, DO NOT hallucinate file names or locations. Explicitly state in the 'summary' that it is not found, and DO NOT add any intents to create it unless requested.\n"
+            "8. CRITICAL: You must ACTUALLY CALL the tools (via JSON function calling) to gather data. Do NOT just output a JSON plan saying you will use a tool. Once you have the data, immediately return the final JSON plan.\n"
+            "9. NEVER put internal tool names (like 'file_lookup', 'file_read', 'content_search') inside the 'intents' array. Intents are strictly for actual actions. If no actions are needed, leave 'stages' EMPTY ([]).\n"
+            "\nCRITICAL INSTRUCTION: Return ONLY the raw JSON object. Do not wrap it in markdown code blocks if possible, or if you do, ensure it is ONLY valid JSON. Escape all newlines in strings as \\n."
         )
         return prompt
 
@@ -122,7 +128,7 @@ class AIPlannerEngine:
         register_knowledge_tools(tool_registry, context.project_path)
         tool_schemas = tool_registry.get_all_schemas()
         
-        max_iterations = 5
+        max_iterations = 15
         content = ""
         for _ in range(max_iterations):
             try:
@@ -154,14 +160,26 @@ class AIPlannerEngine:
                     func_name = tc.get("function", {}).get("name")
                     args_str = tc.get("function", {}).get("arguments", "{}")
                     try:
-                        args = json.loads(args_str)
+                        # DEBUG LOGGING
+                        with open("planner_debug.log", "a", encoding="utf-8") as dbg:
+                            dbg.write(f"\n[TOOL CALL] {func_name}\nARGS: {args_str}\n")
+                            
+                        args = json.loads(args_str) if isinstance(args_str, str) else args_str
                         if func_name == "submit_execution_plan":
                             content = args.get("plan_json", "")
                             break_outer = True
                             break
-                        result = tool_registry.execute(func_name, **args)
+                        # ToolRegistry.execute takes (name, kwargs) as positional arguments
+                        result = tool_registry.execute(func_name, args)
+                        
+                        # DEBUG LOGGING
+                        with open("planner_debug.log", "a", encoding="utf-8") as dbg:
+                            dbg.write(f"RESULT: {str(result)[:500]}\n")
+                            
                     except Exception as e:
                         result = f"Error executing {func_name}: {e}"
+                        with open("planner_debug.log", "a", encoding="utf-8") as dbg:
+                            dbg.write(f"ERROR: {result}\n")
                         
                     messages.append({
                         "role": "tool",
@@ -186,8 +204,16 @@ class AIPlannerEngine:
                     ))
                 return PlannerReport(success=False, error_message=error_msg)
         else:
-            if not content:
-                content = "{ \"error\": \"Max iterations reached\" }"
+            # We reached max iterations. Force the LLM to summarize what it found.
+            messages.append({"role": "user", "content": "SYSTEM: Max iterations reached. You MUST output your final ExecutionPlan JSON now based on the information you have gathered so far."})
+            try:
+                raw_resp = provider.generate(messages, tools=[])
+                if isinstance(raw_resp, dict):
+                    content = raw_resp.get("content", "")
+                else:
+                    content = str(raw_resp)
+            except Exception as e:
+                content = f"{{ \"goal\": \"{context.user_goal}\", \"summary\": \"Max iterations reached. Could not generate plan: {e}\", \"stages\": [] }}"
             
         success, error, plan = self.validator.validate(content)
         
