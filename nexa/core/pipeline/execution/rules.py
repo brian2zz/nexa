@@ -1,39 +1,85 @@
-class WorkspaceRule:
+from abc import ABC, abstractmethod
+import os
+from nexa.core.pipeline.execution.models import CommandRequest
+
+class ValidationRule(ABC):
+    @abstractmethod
+    def validate(self, req: CommandRequest) -> bool:
+        pass
+        
+    @abstractmethod
+    def get_error(self) -> str:
+        pass
+
+class ExecutableRule(ValidationRule):
+    """Ensures the executable is in the whitelist."""
+    
+    WHITELIST = ["git", "pytest", "npm", "flutter", "python", "php", "composer", "nexa", "cmd.exe"]
+    
+    def __init__(self):
+        self.failed_exe = ""
+
+    def validate(self, req: CommandRequest) -> bool:
+        if req.executable not in self.WHITELIST:
+            self.failed_exe = req.executable
+            return False
+        return True
+        
+    def get_error(self) -> str:
+        return f"Executable '{self.failed_exe}' is not in the whitelist."
+
+class DangerousFlagRule(ValidationRule):
+    """Blocks highly dangerous flags for certain commands."""
+    
+    DANGEROUS = {
+        "git": ["--hard", "--force"],
+        "rm": ["-rf", "-r", "-f"],
+    }
+    
+    def __init__(self):
+        self.error_msg = ""
+        
+    def validate(self, req: CommandRequest) -> bool:
+        # Check if the original intent (e.g. inside cmd.exe /c) matches dangerous patterns
+        exe_to_check = req.executable
+        args_to_check = req.args
+        
+        if exe_to_check == "cmd.exe" and len(args_to_check) > 2 and args_to_check[1] == "/c":
+            exe_to_check = args_to_check[2].lower()
+            args_to_check = args_to_check[2:]
+            
+        if exe_to_check in self.DANGEROUS:
+            for flag in self.DANGEROUS[exe_to_check]:
+                if flag in args_to_check:
+                    self.error_msg = f"Dangerous flag '{flag}' for executable '{exe_to_check}' is blocked."
+                    return False
+        return True
+        
+    def get_error(self) -> str:
+        return self.error_msg
+
+class WorkspaceRule(ValidationRule):
     """
-    Rule to validate that a given file path is within the workspace root directory.
-    Removes the '/d' flag if present before checking for directory traversal.
-    Raises explicit errors for absolute paths and traversal attempts.
+    Prevents directory traversal outside the cwd.
+    Blocks 'cd ..' or absolute paths pointing outside.
     """
-
-    def __init__(self, workspace_root: str):
-        """
-        Initialize with the workspace root directory.
-        """
-        self.workspace_root = workspace_root
-
-    def validate(self, path: str) -> str:
-        """
-        Validate and resolve a path relative to the workspace root.
-        Returns the normalized absolute path if valid, raises ValueError otherwise.
-        """
-        # Filter out the '/d' flag prefix (e.g., "/d path/to/file" or "/d/path/to/file")
-        if path.startswith('/d '):
-            path = path[3:]  # Remove "/d "
-        elif path.startswith('/d/'):
-            path = path[3:]  # Remove "/d"
-        elif path == '/d':
-            path = ''  # Single flag without path
-
-        # Reject absolute paths explicitly
-        if path.startswith('/') or (len(path) > 1 and path[1] == ':'):
-            raise ValueError(f"Absolute path is not allowed: '{path}'")
-
-        import os
-        # Normalize the user path
-        normalized_path = os.path.normpath(os.path.join(self.workspace_root, path))
-
-        # Ensure the resolved path is within the workspace root
-        if not normalized_path.startswith(os.path.abspath(self.workspace_root)):
-            raise ValueError(f"Path traversal detected: '{path}' resolves outside workspace")
-
-        return normalized_path
+    def __init__(self):
+        self.error_msg = ""
+        
+    def validate(self, req: CommandRequest) -> bool:
+        exe_to_check = req.executable
+        args_to_check = req.args
+        
+        if exe_to_check == "cmd.exe" and len(args_to_check) > 2 and args_to_check[1] == "/c":
+            exe_to_check = args_to_check[2].lower()
+            args_to_check = args_to_check[2:]
+            
+        if exe_to_check == "cd":
+            for arg in args_to_check[1:]:
+                if ".." in arg:
+                    self.error_msg = f"Directory traversal (..) is forbidden: {arg}"
+                    return False
+        return True
+        
+    def get_error(self) -> str:
+        return self.error_msg
