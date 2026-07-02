@@ -40,7 +40,7 @@ class ExecutionTransaction:
         try:
             # 1. Transform & Patch
             print("[Transaction] [1/5] Melakukan kalkulasi Patch...")
-            transform_results = self.transform_engine.transform(self.plan)
+            transform_results = self.transform_engine.transform(self.plan, cwd=self.cwd)
             patches = self.patch_engine.calculate(transform_results)
             
             # Ekstrak daftar file yang akan dimodifikasi

@@ -66,11 +66,36 @@ class GitTool:
         except Exception:
             return "Git not installed or not found"
 
+    def execute(self, command: str) -> str:
+        """Executes any git command and returns the output."""
+        try:
+            if not command.startswith("git"):
+                return "Error: Only git commands are allowed."
+            
+            # Use shlex to parse command string safely? Or just pass shell=True
+            result = subprocess.run(
+                command,
+                cwd=self.cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8', errors='replace', shell=True
+            )
+            output = result.stdout if result.returncode == 0 else result.stderr
+            if not output:
+                return f"Command '{command}' executed successfully with no output."
+                
+            max_chars = 12000
+            if len(output) > max_chars:
+                output = output[:max_chars] + f"\n\n... [TRUNCATED] Output is too large ({len(output)} chars)."
+            return output
+        except Exception as e:
+            return f"Git Error: {e}"
+
 def git_status(cwd: str) -> str:
     return GitTool(cwd).status()
 
 def git_diff(cwd: str) -> str:
     return GitTool(cwd).diff()
+
+def git_execute(cwd: str, command: str) -> str:
+    return GitTool(cwd).execute(command)
 
 GIT_STATUS_SCHEMA = {
     "type": "function",
@@ -98,6 +123,25 @@ GIT_DIFF_SCHEMA = {
     }
 }
 
+GIT_EXECUTE_SCHEMA = {
+    "type": "function",
+    "function": {
+        "name": "git_execute",
+        "description": "Execute any git command (e.g. 'git log', 'git blame file.py', 'git branch') and get the output.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "command": {
+                    "type": "string",
+                    "description": "The full git command to execute, must start with 'git'."
+                }
+            },
+            "required": ["command"]
+        }
+    }
+}
+
 def register_git_tools(registry, cwd: str):
     registry.register("git_status", lambda: git_status(cwd), GIT_STATUS_SCHEMA)
     registry.register("git_diff", lambda: git_diff(cwd), GIT_DIFF_SCHEMA)
+    registry.register("git_execute", lambda command: git_execute(cwd, command), GIT_EXECUTE_SCHEMA)

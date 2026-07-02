@@ -2,6 +2,7 @@ import os
 import sqlite3
 import threading
 from typing import List, Dict, Optional
+from nexa.core.utils.path import get_project_nexa_dir
 
 class WorkspaceIndexer:
     """
@@ -9,7 +10,7 @@ class WorkspaceIndexer:
     """
     def __init__(self, workspace_path: str):
         self.workspace_path = workspace_path
-        self.db_path = os.path.join(workspace_path, ".nexa", "workspace.db")
+        self.db_path = os.path.join(get_project_nexa_dir(workspace_path), "workspace.db")
         self._ensure_db()
 
     def _ensure_db(self):

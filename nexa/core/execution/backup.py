@@ -4,15 +4,16 @@ import shutil
 import hashlib
 from typing import List, Dict, Optional
 from datetime import datetime
+from nexa.core.utils.path import get_project_nexa_dir
 
 class BackupManager:
     """
     Manager pencadangan deterministik. Mengelola lifecycle transaksi backup.
     Menggunakan penyimpanan disk (.nexa/backups) untuk ketahanan terhadap crash.
     """
-    def __init__(self, repo_root: str, backup_dir_name: str = ".nexa/backups"):
+    def __init__(self, repo_root: str, backup_dir_name: str = "backups"):
         self.repo_root = repo_root
-        self.backup_root = os.path.join(repo_root, backup_dir_name)
+        self.backup_root = os.path.join(get_project_nexa_dir(repo_root), backup_dir_name)
         self.current_session_id: Optional[str] = None
         self.session_dir: Optional[str] = None
         self.manifest: Dict = {}

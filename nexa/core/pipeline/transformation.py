@@ -18,7 +18,7 @@ class TransformationEngine:
         except Exception:
             self.provider = None
 
-    def transform(self, plan: Dict[str, Any]) -> List[TransformationResult]:
+    def transform(self, plan: Dict[str, Any], cwd: str = ".") -> List[TransformationResult]:
         results = []
         steps = []
         for stage in plan.get("stages", []):
@@ -41,9 +41,22 @@ class TransformationEngine:
                 target = step.get("target", "")
                 desc = step.get("description", "")
                 
+                # Baca file asli jika ada
+                original_content = ""
+                import os
+                
+                abs_target = target if os.path.isabs(target) else os.path.join(cwd, target)
+                
+                if os.path.exists(abs_target):
+                    try:
+                        with open(abs_target, 'r', encoding='utf-8') as f:
+                            original_content = f.read()
+                    except Exception:
+                        pass
+                
                 messages = [
-                    {"role": "system", "content": "You are a pure code generator. Output ONLY the raw code for the requested file, without markdown formatting or reasoning."},
-                    {"role": "user", "content": f"Target: {target}\nDescription: {desc}\nOutput the raw code."}
+                    {"role": "system", "content": "You are a pure code generator. Output ONLY the raw code for the requested file, without markdown formatting or reasoning. You MUST output the ENTIRE file completely rewritten with the changes applied. Do NOT output partial snippets. Do NOT output diffs. Output the FULL file contents from start to finish."},
+                    {"role": "user", "content": f"Target: {target}\nDescription: {desc}\n\nOriginal File Content:\n{original_content}\n\nOutput the full raw code."}
                 ]
                 
                 if self.provider:
@@ -54,7 +67,14 @@ class TransformationEngine:
                         if raw_code.startswith("```"):
                             lines = raw_code.split("\n")
                             if len(lines) >= 2:
-                                raw_code = "\n".join(lines[1:-1])
+                                # Cari penutup markdown terakhir
+                                end_idx = len(lines) - 1
+                                while end_idx > 0 and not lines[end_idx].strip() == "```":
+                                    end_idx -= 1
+                                if end_idx > 0:
+                                    raw_code = "\n".join(lines[1:end_idx])
+                                else:
+                                    raw_code = "\n".join(lines[1:])
                     except Exception as e:
                         raw_code = f"ERROR: {e}"
                 else:

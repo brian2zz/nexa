@@ -2,6 +2,7 @@ import os
 import subprocess
 import json
 from nexa.core.ai.scanner.detector import ProjectDetector
+from nexa.core.utils.path import get_project_nexa_dir
 
 class WorkspaceManager:
     """
@@ -19,7 +20,7 @@ class WorkspaceManager:
             
     def _get_last_backup_manifest(self) -> str:
         """Mengintip manifest backup terakhir dari Phase 3."""
-        backup_dir = os.path.join(self.cwd, ".nexa", "backups")
+        backup_dir = os.path.join(get_project_nexa_dir(self.cwd), "backups")
         if not os.path.exists(backup_dir):
             return "No previous patches found."
             

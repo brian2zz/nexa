@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from typing import Optional
-from .schema import ExecutionPlan
+from .schema import PlanningResult
 from .formatter import PlanFormatter
 
 @dataclass
@@ -10,7 +10,7 @@ class PlannerReport:
     """
     success: bool
     error_message: str
-    plan: Optional[ExecutionPlan] = None
+    plan: Optional[PlanningResult] = None
     
     def to_markdown(self) -> str:
         if not self.success:

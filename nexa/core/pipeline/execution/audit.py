@@ -3,6 +3,7 @@ import sqlite3
 import hashlib
 from datetime import datetime
 from nexa.core.pipeline.execution.models import CommandResult
+from nexa.core.utils.path import get_project_nexa_dir
 
 class AuditService:
     """
@@ -10,7 +11,7 @@ class AuditService:
     """
     
     def __init__(self, workspace_path: str):
-        self.db_path = os.path.join(workspace_path, ".nexa", "execution_audit.db")
+        self.db_path = os.path.join(get_project_nexa_dir(workspace_path), "execution_audit.db")
         self._ensure_db()
         
     def _ensure_db(self):

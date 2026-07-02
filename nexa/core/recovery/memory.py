@@ -1,12 +1,13 @@
 import os
 import sqlite3
 from typing import Optional, Dict
+from nexa.core.utils.path import get_project_nexa_dir
 
 class RecoveryMemory:
     """SQLite-backed Memory for Learning from Failures."""
     
     def __init__(self, workspace_path: str):
-        self.db_path = os.path.join(workspace_path, ".nexa", "recovery_memory.db")
+        self.db_path = os.path.join(get_project_nexa_dir(workspace_path), "recovery_memory.db")
         self._ensure_db()
 
     def _ensure_db(self):

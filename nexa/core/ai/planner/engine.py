@@ -20,8 +20,8 @@ class AIPlannerEngine:
     def build_system_prompt(self, context: PlannerContext) -> str:
         prompt = (
             "You are Nexa AI Planner, an elite Software Engineering Architect.\n"
-            "Your ONLY responsibility is to create an ExecutionPlan in STRICT JSON format.\n"
-            "You DO NOT write code directly, you DO NOT execute commands. You only output a blueprint JSON.\n\n"
+            "Your ONLY responsibility is to create a PlanningResult in STRICT JSON format.\n"
+            "You DO NOT write code directly, you DO NOT execute commands. You only output a software design blueprint JSON with objectives, work items, and risks.\n\n"
         )
         
         prompt += f"Project Path: {context.project_path}\n"
@@ -41,31 +41,49 @@ class AIPlannerEngine:
             
         prompt += (
             "\nEXPECTED OUTPUT FORMAT (JSON ONLY):\n"
-            "You MUST return a JSON object with at least the 'goal' and 'summary' fields.\n"
+            "You MUST return a JSON object representing a PlanningResult.\n"
             "{\n"
             "  \"goal\": \"string (Describe what you were asked to do)\",\n"
             "  \"summary\": \"string (Provide your detailed final answer, search results, or findings here)\",\n"
-            "  \"complexity\": \"low|medium|high\",\n"
-            "  \"estimated_time\": \"string\",\n"
-            "  \"risk\": \"string\",\n"
-            "  \"affected_modules\": [\"string\"],\n"
-            "  \"affected_files\": [\"string\"],\n"
-            "  \"files_to_create\": [\"string\"],\n"
-            "  \"files_to_modify\": [\"string\"],\n"
-            "  \"dependencies\": [\"string\"],\n"
-            "  \"stages\": [\n"
+            "  \"objective\": \"string (The primary software engineering objective)\",\n"
+            "  \"constraints\": [\"string (e.g. Don't modify auth, Backward compatible)\"],\n"
+            "  \"affected_components\": {\n"
+            "    \"models\": [\"string\"],\n"
+            "    \"services\": [\"string\"],\n"
+            "    \"commands\": [\"string\"],\n"
+            "    \"tests\": [\"string\"],\n"
+            "    \"docs\": [\"string\"],\n"
+            "    \"files\": [\"string\"]\n"
+            "  },\n"
+            "  \"work_items\": [\n"
             "    {\n"
-            "      \"name\": \"string (e.g. Preparation, Execution, Verification)\",\n"
-            "      \"intents\": [\n"
-            "        {\"action\": \"string (e.g. git_commit, terminal_command)\", \"parameters\": {}, \"description\": \"string\"}\n"
-            "      ]\n"
+            "      \"title\": \"string (Task title)\",\n"
+            "      \"description\": \"string (Detailed explanation of what needs to be built)\",\n"
+            "      \"affected_files\": [\"string (Files needed to be modified for this item)\"],\n"
+            "      \"objective\": \"string (The goal of this specific work item)\"\n"
             "    }\n"
             "  ],\n"
-            "  \"verification_steps\": [\"string\"],\n"
-            "  \"warnings\": [\"string\"],\n"
-            "  \"recommendations\": [\"string\"],\n"
-            "  \"rollback_strategy\": \"string\",\n"
-            "  \"confidence\": 1-100\n"
+            "  \"acceptance_criteria\": [\n"
+            "    {\n"
+            "      \"description\": \"string (Condition that must be met)\",\n"
+            "      \"priority\": \"MUST|SHOULD|COULD\",\n"
+            "      \"verification_method\": \"string (How to test this, e.g. Unit test, Manual UI check)\"\n"
+            "    }\n"
+            "  ],\n"
+            "  \"risk_analysis\": [\n"
+            "    {\n"
+            "      \"category\": \"Performance|Compatibility|Security|Rollback|Business\",\n"
+            "      \"probability\": \"LOW|MEDIUM|HIGH\",\n"
+            "      \"impact\": \"LOW|MEDIUM|HIGH\",\n"
+            "      \"mitigation\": \"string (How to mitigate this risk)\"\n"
+            "    }\n"
+            "  ],\n"
+            "  \"confidence\": {\n"
+            "    \"level\": \"LOW|MEDIUM|HIGH\",\n"
+            "    \"score\": 0, // integer 0-100\n"
+            "    \"reason\": \"string (Why this confidence level)\",\n"
+            "    \"missing_information\": \"string (What is still unknown)\"\n"
+            "  }\n"
             "}\n\n"
             "CRITICAL RULES FOR TOOLS:\n"
             "1. DO NOT invent or call any tools that are not explicitly provided in the tool schemas.\n"
@@ -118,7 +136,7 @@ class AIPlannerEngine:
         for msg in context.conversation_memory:
             messages.append(msg)
             
-        messages.append({"role": "user", "content": f"Create an ExecutionPlan for this goal: {context.user_goal}"})
+        messages.append({"role": "user", "content": f"Create a PlanningResult for this goal: {context.user_goal}"})
         
         from nexa.core.agent.tools.registry import ToolRegistry
         from nexa.core.agent.tools.knowledge import register_knowledge_tools
@@ -205,7 +223,7 @@ class AIPlannerEngine:
                 return PlannerReport(success=False, error_message=error_msg)
         else:
             # We reached max iterations. Force the LLM to summarize what it found.
-            messages.append({"role": "user", "content": "SYSTEM: Max iterations reached. You MUST output your final ExecutionPlan JSON now based on the information you have gathered so far."})
+            messages.append({"role": "user", "content": "SYSTEM: Max iterations reached. You MUST output your final PlanningResult JSON now based on the information you have gathered so far."})
             try:
                 raw_resp = provider.generate(messages, tools=[])
                 if isinstance(raw_resp, dict):
@@ -213,7 +231,7 @@ class AIPlannerEngine:
                 else:
                     content = str(raw_resp)
             except Exception as e:
-                content = f"{{ \"goal\": \"{context.user_goal}\", \"summary\": \"Max iterations reached. Could not generate plan: {e}\", \"stages\": [] }}"
+                content = f"{{ \"goal\": \"{context.user_goal}\", \"summary\": \"Max iterations reached. Could not generate plan: {e}\", \"work_items\": [] }}"
             
         success, error, plan = self.validator.validate(content)
         

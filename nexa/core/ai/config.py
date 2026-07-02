@@ -1,7 +1,6 @@
 import os
 
 class AgentConfig:
-    DB_PATH = '.nexa/agent.db'
     IGNORE_LIST = [
         '.git',
         'node_modules',

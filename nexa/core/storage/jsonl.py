@@ -3,9 +3,14 @@ import json
 import threading
 from typing import Any, List, Dict
 from nexa.core.storage.base import StorageBackend
+from nexa.core.utils.path import get_project_nexa_dir
 
 class JsonlStorageBackend(StorageBackend):
-    def __init__(self, log_dir: str = ".nexa/logs"):
+    def __init__(self, log_dir: str = None, cwd: str = None):
+        if log_dir is None:
+            if cwd is None:
+                cwd = os.getcwd()
+            log_dir = os.path.join(get_project_nexa_dir(cwd), "logs")
         self.log_dir = log_dir
         self._lock = threading.Lock()
         

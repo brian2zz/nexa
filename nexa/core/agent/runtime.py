@@ -1,11 +1,9 @@
 import sys
 import os
-from typing import Optional
-from prompt_toolkit import PromptSession
-from prompt_toolkit.history import InMemoryHistory
+import logging
 
-from nexa.config import Config
 from nexa.core.events.bus import PipelineBus
+from nexa.core.utils.path import get_project_nexa_dir
 from nexa.core.ai.memory.core import ChatMemoryManager
 from nexa.core.agent.conversation import ConversationManager
 
@@ -19,6 +17,20 @@ class NexaAgentRuntime:
         self.cwd = cwd
         self.is_running = False
         self.bus = PipelineBus(max_workers=2)
+        
+        # Inisialisasi Logger
+        log_dir = os.path.join(get_project_nexa_dir(self.cwd), "logs")
+        os.makedirs(log_dir, exist_ok=True)
+        log_file = os.path.join(log_dir, "nexa-error.log")
+        
+        self.logger = logging.getLogger("NexaRuntime")
+        self.logger.setLevel(logging.ERROR)
+        if not self.logger.handlers:
+            fh = logging.FileHandler(log_file)
+            fh.setLevel(logging.ERROR)
+            formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+            fh.setFormatter(formatter)
+            self.logger.addHandler(fh)
         
         # Inisialisasi sistem memori (Sprint 2)
         self.memory = ChatMemoryManager()
@@ -49,7 +61,14 @@ class NexaAgentRuntime:
             import dataclasses
             plan = context.payload.get("plan", {})
             if dataclasses.is_dataclass(plan):
-                plan = dataclasses.asdict(plan)
+                # Check if it's PlanningResult, convert to ExecutionPlan
+                if plan.__class__.__name__ == "PlanningResult":
+                    from nexa.core.ai.planner.builder import PipelineBuilder
+                    builder = PipelineBuilder()
+                    exec_plan = builder.build(plan)
+                    plan = dataclasses.asdict(exec_plan)
+                else:
+                    plan = dataclasses.asdict(plan)
                 
             if not plan:
                 print("[!] Execution dibatalkan: Tidak ada plan yang diterima.")
@@ -161,7 +180,8 @@ class NexaAgentRuntime:
                 self._graceful_shutdown()
                 break
             except Exception as e:
-                print(f"\n[ERROR] Agent Runtime Error: {e}")
+                self.logger.exception("Agent Runtime Error occurred")
+                print(f"\n[ERROR] Agent Runtime Error: {e}. Detail lengkap ada di .nexa/logs/nexa-error.log")
                 
     def _handle_input(self, user_input: str):
         """

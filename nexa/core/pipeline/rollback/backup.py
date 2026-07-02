@@ -2,11 +2,12 @@ import os
 import shutil
 from typing import List
 from nexa.core.pipeline.rollback.base import RollbackStrategy
+from nexa.core.utils.path import get_project_nexa_dir
 
 class BackupRollbackStrategy(RollbackStrategy):
     def __init__(self, cwd: str):
         self.cwd = cwd
-        self.backup_dir = os.path.join(cwd, ".nexa", "backups")
+        self.backup_dir = os.path.join(get_project_nexa_dir(cwd), "backups")
         self.backed_up_files = []
         
     def backup(self, files: List[str]) -> bool:

@@ -2,13 +2,14 @@ import os
 import json
 import datetime
 from .schema import AnalysisSession
+from nexa.core.utils.path import get_project_nexa_dir
 
 class HistoryManager:
     """
     Saves AnalysisSession to .nexa/analysis/ for future comparison.
     """
     def __init__(self, project_root: str):
-        self.history_dir = os.path.join(project_root, ".nexa", "analysis")
+        self.history_dir = os.path.join(get_project_nexa_dir(project_root), "analysis")
         os.makedirs(self.history_dir, exist_ok=True)
         
     def save(self, session: AnalysisSession) -> str:

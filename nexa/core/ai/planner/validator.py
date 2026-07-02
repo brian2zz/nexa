@@ -1,11 +1,11 @@
 import json
 import re
 from typing import Dict, Any, Tuple
-from .schema import ExecutionPlan
+from .schema import PlanningResult
 
 class PlanValidator:
     """
-    Validates JSON output from the AI and converts it to an ExecutionPlan.
+    Validates JSON output from the AI and converts it to a PlanningResult.
     """
     def extract_json(self, text: str) -> str:
         """Extract JSON block from markdown if present."""
@@ -21,9 +21,9 @@ class PlanValidator:
             
         return text
 
-    def validate(self, raw_text: str) -> Tuple[bool, str, ExecutionPlan]:
+    def validate(self, raw_text: str) -> Tuple[bool, str, PlanningResult]:
         """
-        Returns (success, error_message, execution_plan).
+        Returns (success, error_message, planning_result).
         """
         json_str = self.extract_json(raw_text)
         try:
@@ -31,17 +31,13 @@ class PlanValidator:
         except json.JSONDecodeError as e:
             return False, f"Failed to parse JSON: {str(e)}\nRaw output: {raw_text}", None
             
-        # Required fields check (execution_steps is optional for purely informational queries)
-        required_keys = ['goal', 'summary']
+        required_keys = ['objective', 'work_items']
         missing = [k for k in required_keys if k not in data]
         if missing:
             return False, f"JSON missing required fields: {', '.join(missing)}\nFound keys: {list(data.keys())}\nRaw data: {data}", None
             
-        if 'stages' not in data:
-            data['stages'] = []
-            
         try:
-            plan = ExecutionPlan.from_dict(data)
+            plan = PlanningResult.from_dict(data)
             return True, "", plan
         except Exception as e:
-            return False, f"Failed to map JSON to ExecutionPlan: {str(e)}", None
+            return False, f"Failed to map JSON to PlanningResult: {str(e)}", None

@@ -625,9 +625,10 @@ def handle(args):
                     GREEN = '\033[92m'
                     RESET = '\033[0m'
                     print(f"\n{GREEN}{report.to_markdown()}{RESET}\n")
+                    work_items = getattr(report.plan, "work_items", []) if not isinstance(report.plan, dict) else report.plan.get("work_items", [])
                     stages = getattr(report.plan, "stages", []) if not isinstance(report.plan, dict) else report.plan.get("stages", [])
                     
-                    if not stages:
+                    if not work_items and not stages:
                         # LLM hanya melakukan investigasi (Search & Answer)
                         memory_manager.save_message(runtime.session_id, "user", final_prompt)
                         summary_text = getattr(report.plan, "summary", "") if not isinstance(report.plan, dict) else report.plan.get("summary", "")
