@@ -33,6 +33,45 @@ class FileTool:
         except Exception as e:
             return f"Error reading file: {e}"
 
+    def read_symbol(self, symbol_name: str) -> str:
+        """
+        Phase 5: Read a specific symbol (function, class) from AST Index.
+        Returns a rich semantic JSON object containing the exact lines of code.
+        """
+        results = self.indexer.query_symbols(symbol_name)
+        if not results:
+            return f"Symbol '{symbol_name}' not found in any parsed files."
+            
+        semantic_objects = []
+        for res in results:
+            filepath = res["filepath"]
+            start_line = res["start_line"]
+            end_line = res["end_line"]
+            
+            full_path = os.path.join(self.workspace_path, filepath) if not os.path.isabs(filepath) else filepath
+            
+            try:
+                with open(full_path, 'r', encoding='utf-8', errors='replace') as f:
+                    lines = f.readlines()
+                    
+                # line numbers are 1-indexed in ast
+                start_idx = max(0, start_line - 1)
+                end_idx = min(len(lines), end_line)
+                
+                code_block = "".join(lines[start_idx:end_idx])
+                
+                semantic_objects.append({
+                    "type": res["type"],
+                    "name": res["name"],
+                    "file": filepath,
+                    "lines": [start_line, end_line],
+                    "code": code_block
+                })
+            except Exception as e:
+                pass
+                
+        return json.dumps(semantic_objects, indent=2)
+
     def exists(self, filepath: str) -> str:
         full_path = os.path.join(self.workspace_path, filepath) if not os.path.isabs(filepath) else filepath
         return "True" if os.path.exists(full_path) else "False"

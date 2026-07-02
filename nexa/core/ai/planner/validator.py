@@ -37,7 +37,23 @@ class PlanValidator:
             return False, f"JSON missing required fields: {', '.join(missing)}\nFound keys: {list(data.keys())}\nRaw data: {data}", None
             
         try:
-            plan = PlanningResult.from_dict(data)
+            plan = PlanningResult.from_dict(data)            
             return True, "", plan
+            
         except Exception as e:
-            return False, f"Failed to map JSON to PlanningResult: {str(e)}", None
+            return False, f"Unexpected validation error: {str(e)}", None
+
+    def validate_dataclass(self, plan: PlanningResult) -> tuple[bool, str, Any]:
+        """
+        Validates an already constructed PlanningResult dataclass.
+        """
+        if not isinstance(plan, PlanningResult):
+            return False, "Not a valid PlanningResult object", None
+            
+        if not plan.goal:
+            return False, "Missing goal", None
+            
+        if not plan.work_items:
+            return False, "Missing work_items. AI must define at least one work item.", None
+            
+        return True, "", plan

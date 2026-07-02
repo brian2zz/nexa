@@ -113,127 +113,37 @@ class AIPlannerEngine:
                 payload={"goal": context.user_goal}
             ))
             
-        try:
-            provider = ProviderFactory.create()
-        except Exception as e:
-            error_msg = f"Provider Error: {e}"
-            if self.bus:
-                self.bus.publish(EventContext(
-                    event_name="PlanningFailed",
-                    timestamp=datetime.datetime.now().isoformat(),
-                    source="PlannerEngine",
-                    priority=EventPriority.HIGH,
-                    session_id=session_id,
-                    duration=time.time() - start_time,
-                    payload={"error": error_msg}
-                ))
-            return PlannerReport(success=False, error_message=error_msg)
-
-        sys_prompt = self.build_system_prompt(context)
+        from nexa.core.ai.cognitive.engines.hypothesis import HypothesisEngine
+        from nexa.core.ai.cognitive.engines.acquisition import KnowledgeAcquisitionEngine
+        from nexa.core.ai.cognitive.engines.reasoning import ReasoningEngine
+        from nexa.core.ai.cognitive.engines.planning import PlanningEngine
         
-        # Build chat memory context
-        messages = [{"role": "system", "content": sys_prompt}]
-        for msg in context.conversation_memory:
-            messages.append(msg)
-            
-        messages.append({"role": "user", "content": f"Create a PlanningResult for this goal: {context.user_goal}"})
+        # 1. Intent & Hypothesis (LLM Call 1)
+        print("       [Cognitive Layer] Generating Hypotheses...")
+        hypothesis_engine = HypothesisEngine()
+        hypothesis_result = hypothesis_engine.generate(
+            user_goal=context.user_goal, 
+            project_facts=context.project_facts,
+            knowledge_context=context.knowledge_context,
+            conversation_memory=context.conversation_memory
+        )
         
-        from nexa.core.agent.tools.registry import ToolRegistry
-        from nexa.core.agent.tools.knowledge import register_knowledge_tools
-        import json
+        # 2. Knowledge Acquisition (Deterministic - No LLM)
+        print("       [Cognitive Layer] Acquiring Knowledge Deterministically...")
+        acquisition_engine = KnowledgeAcquisitionEngine(context.project_path)
+        evidence_context = acquisition_engine.gather(hypothesis_result)
         
-        tool_registry = ToolRegistry()
-        register_knowledge_tools(tool_registry, context.project_path)
-        tool_schemas = tool_registry.get_all_schemas()
+        # 3. Reasoning (LLM Call 2)
+        print("       [Cognitive Layer] Reasoning & Validating Evidence...")
+        reasoning_engine = ReasoningEngine()
+        reasoning_result = reasoning_engine.analyze(evidence_context, context.user_goal)
         
-        max_iterations = 15
-        content = ""
-        for _ in range(max_iterations):
-            try:
-                raw_resp = provider.generate(messages, tools=tool_schemas)
-                
-                # Check if raw_resp is a dictionary or string
-                if isinstance(raw_resp, dict):
-                    tool_calls = raw_resp.get("tool_calls", [])
-                    content = raw_resp.get("content", "")
-                else:
-                    tool_calls = []
-                    content = str(raw_resp)
-                
-                if not tool_calls:
-                    break
-                    
-                # Print indicator that tool is being called
-                print(f"       [Planner Tool Call]: {tool_calls[0].get('function', {}).get('name')}")
-                
-                # We have tool calls!
-                messages.append({
-                    "role": "assistant",
-                    "content": content,
-                    "tool_calls": tool_calls
-                })
-                
-                break_outer = False
-                for tc in tool_calls:
-                    func_name = tc.get("function", {}).get("name")
-                    args_str = tc.get("function", {}).get("arguments", "{}")
-                    try:
-                        # DEBUG LOGGING
-                        with open("planner_debug.log", "a", encoding="utf-8") as dbg:
-                            dbg.write(f"\n[TOOL CALL] {func_name}\nARGS: {args_str}\n")
-                            
-                        args = json.loads(args_str) if isinstance(args_str, str) else args_str
-                        if func_name == "submit_execution_plan":
-                            content = args.get("plan_json", "")
-                            break_outer = True
-                            break
-                        # ToolRegistry.execute takes (name, kwargs) as positional arguments
-                        result = tool_registry.execute(func_name, args)
-                        
-                        # DEBUG LOGGING
-                        with open("planner_debug.log", "a", encoding="utf-8") as dbg:
-                            dbg.write(f"RESULT: {str(result)[:500]}\n")
-                            
-                    except Exception as e:
-                        result = f"Error executing {func_name}: {e}"
-                        with open("planner_debug.log", "a", encoding="utf-8") as dbg:
-                            dbg.write(f"ERROR: {result}\n")
-                        
-                    messages.append({
-                        "role": "tool",
-                        "tool_call_id": tc.get("id"),
-                        "name": func_name,
-                        "content": str(result)
-                    })
-                    
-                if break_outer:
-                    break
-            except Exception as e:
-                error_msg = f"Generation Error: {e}"
-                if self.bus:
-                    self.bus.publish(EventContext(
-                        event_name="PlanningFailed",
-                        timestamp=datetime.datetime.now().isoformat(),
-                        source="PlannerEngine",
-                        priority=EventPriority.HIGH,
-                        session_id=session_id,
-                        duration=time.time() - start_time,
-                        payload={"error": error_msg}
-                    ))
-                return PlannerReport(success=False, error_message=error_msg)
-        else:
-            # We reached max iterations. Force the LLM to summarize what it found.
-            messages.append({"role": "user", "content": "SYSTEM: Max iterations reached. You MUST output your final PlanningResult JSON now based on the information you have gathered so far."})
-            try:
-                raw_resp = provider.generate(messages, tools=[])
-                if isinstance(raw_resp, dict):
-                    content = raw_resp.get("content", "")
-                else:
-                    content = str(raw_resp)
-            except Exception as e:
-                content = f"{{ \"goal\": \"{context.user_goal}\", \"summary\": \"Max iterations reached. Could not generate plan: {e}\", \"work_items\": [] }}"
-            
-        success, error, plan = self.validator.validate(content)
+        # 4. Planning (LLM Call 3)
+        print("       [Cognitive Layer] Formulating Execution Plan...")
+        planning_engine = PlanningEngine()
+        plan = planning_engine.build(reasoning_result, context.user_goal)
+        
+        success, error, validated_plan = self.validator.validate_dataclass(plan)
         
         duration = time.time() - start_time
         
@@ -261,4 +171,4 @@ class AIPlannerEngine:
                 payload={"goal": context.user_goal, "status": "success"}
             ))
             
-        return PlannerReport(success=True, error_message="", plan=plan)
+        return PlannerReport(success=True, error_message="", plan=validated_plan)

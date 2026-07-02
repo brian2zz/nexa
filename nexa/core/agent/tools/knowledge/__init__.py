@@ -51,6 +51,26 @@ def register_knowledge_tools(registry, cwd: str):
     )
 
     registry.register(
+        "read_symbol",
+        file_tool.read_symbol,
+        schema={
+            "type": "function",
+            "function": {
+                "name": "read_symbol",
+                "description": "Read exact lines of a specific function or class from the AST Semantic Index. Much cheaper than reading the full file.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "symbol_name": {"type": "string", "description": "The exact name of the function or class (e.g. 'update_supplier')"}
+                    },
+                    "required": ["symbol_name"]
+                }
+            }
+        },
+        metadata=ToolMetadata(name="read_symbol", cost=2, latency="fast", category="semantic", read_only=True, priority=95, capabilities=["read_symbol", "semantic_search"])
+    )
+
+    registry.register(
         "content_search",
         search_tool.text,
         schema={

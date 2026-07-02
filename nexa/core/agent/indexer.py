@@ -17,6 +17,12 @@ class WorkspaceIndexer:
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
+            
+            # Phase 5: Drop legacy DB if it doesn't have the new tables
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='symbols'")
+            if not cursor.fetchone():
+                cursor.execute("DROP TABLE IF EXISTS files")
+                
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS files (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -30,6 +36,31 @@ class WorkspaceIndexer:
             # Create indexes for fast lookup
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_filename ON files(filename)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_extension ON files(extension)')
+            
+            # Phase 5: AST Semantic Indexing
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS symbols (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    file_id INTEGER,
+                    name TEXT,
+                    type TEXT,
+                    start_line INTEGER,
+                    end_line INTEGER,
+                    FOREIGN KEY(file_id) REFERENCES files(id) ON DELETE CASCADE
+                )
+            ''')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_symbol_name ON symbols(name)')
+            
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS imports (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    file_id INTEGER,
+                    name TEXT,
+                    source TEXT,
+                    FOREIGN KEY(file_id) REFERENCES files(id) ON DELETE CASCADE
+                )
+            ''')
+            
             conn.commit()
 
     def scan_workspace(self, async_scan: bool = True):
@@ -71,6 +102,23 @@ class WorkspaceIndexer:
                             INSERT INTO files (filepath, filename, extension, size, last_modified)
                             VALUES (?, ?, ?, ?, ?)
                         ''', (rel_path, file, ext.lower(), stat.st_size, stat.st_mtime))
+                        
+                        file_id = cursor.lastrowid
+                        
+                        # Phase 5: Semantic AST Indexing
+                        if ext.lower() == '.py':
+                            symbols, imports = self._parse_python_ast(filepath)
+                            for sym in symbols:
+                                cursor.execute('''
+                                    INSERT INTO symbols (file_id, name, type, start_line, end_line)
+                                    VALUES (?, ?, ?, ?, ?)
+                                ''', (file_id, sym[0], sym[1], sym[2], sym[3]))
+                            for imp in imports:
+                                cursor.execute('''
+                                    INSERT INTO imports (file_id, name, source)
+                                    VALUES (?, ?, ?)
+                                ''', (file_id, imp[0], imp[1]))
+                                
                     except Exception:
                         # Ignore unreadable files
                         pass
@@ -107,6 +155,65 @@ class WorkspaceIndexer:
                         "filepath": row[0],
                         "filename": row[1],
                         "size": row[2]
+                    })
+        except sqlite3.Error as e:
+            results.append({"error": str(e)})
+            
+        return results
+
+    def _parse_python_ast(self, filepath: str) -> tuple[List[tuple], List[tuple]]:
+        """
+        Parses a python file using the built-in ast module.
+        Returns (symbols, imports)
+        symbols: [(name, type, start_line, end_line)]
+        imports: [(name, source)]
+        """
+        import ast
+        symbols = []
+        imports = []
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                content = f.read()
+            tree = ast.parse(content)
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ClassDef):
+                    symbols.append((node.name, 'class', node.lineno, getattr(node, 'end_lineno', node.lineno)))
+                elif isinstance(node, ast.FunctionDef) or isinstance(node, ast.AsyncFunctionDef):
+                    symbols.append((node.name, 'function', node.lineno, getattr(node, 'end_lineno', node.lineno)))
+                elif isinstance(node, ast.Import):
+                    for alias in node.names:
+                        imports.append((alias.name, None))
+                elif isinstance(node, ast.ImportFrom):
+                    for alias in node.names:
+                        imports.append((alias.name, node.module))
+        except Exception:
+            pass
+        return symbols, imports
+
+    def query_symbols(self, name: str) -> List[Dict]:
+        """
+        Queries the database for symbols matching the name.
+        Returns a list of dictionaries with semantic information.
+        """
+        query = '''
+            SELECT s.name, s.type, s.start_line, s.end_line, f.filepath 
+            FROM symbols s
+            JOIN files f ON s.file_id = f.id
+            WHERE s.name LIKE ?
+            LIMIT 50
+        '''
+        results = []
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, (f"%{name}%",))
+                for row in cursor.fetchall():
+                    results.append({
+                        "name": row[0],
+                        "type": row[1],
+                        "start_line": row[2],
+                        "end_line": row[3],
+                        "filepath": row[4]
                     })
         except sqlite3.Error as e:
             results.append({"error": str(e)})
