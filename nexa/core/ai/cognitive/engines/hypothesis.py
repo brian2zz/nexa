@@ -10,7 +10,7 @@ class HypothesisEngine:
     def __init__(self):
         self.provider = ProviderFactory.create()
         
-    def generate(self, user_goal: str, project_facts: Dict = None, knowledge_context: str = "", conversation_memory: List[Dict] = None) -> HypothesisResult:
+    def generate(self, user_goal: str, project_facts: Dict = None, knowledge_context: str = "", conversation_memory: List[Dict] = None, capabilities: List[str] = None) -> HypothesisResult:
         sys_prompt = (
             "You are the Nexa Hypothesis Engine.\n"
             "Your task is to analyze the user's goal and generate 2-3 logical hypotheses about where the issue lies or where the feature should be built.\n"
@@ -40,6 +40,8 @@ class HypothesisEngine:
             prompt += f"Project Facts: {json.dumps(project_facts)}\n"
         if knowledge_context:
             prompt += f"Knowledge Context (Directory Tree & Architecture):\n{knowledge_context}\n"
+        if capabilities:
+            prompt += f"Detected Capabilities (Use this hint to form relevant search targets): {capabilities}\n"
             
         messages = [{"role": "system", "content": sys_prompt}]
         

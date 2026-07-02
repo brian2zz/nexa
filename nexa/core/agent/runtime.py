@@ -102,7 +102,7 @@ class NexaAgentRuntime:
                 
                 planner = AIPlannerEngine()
                 with Spinner("Self-Healing: Regenerating Plan..."):
-                    report = planner.plan(planner_context)
+                    report = planner.plan(planner_context, session_id=self.session_id)
                     
                 if report.success:
                     GREEN = '\033[92m'
@@ -124,6 +124,77 @@ class NexaAgentRuntime:
                     print(f"\n[!] Auto-Recovery Failed: {report.error_message}\n")
             
         self.bus.subscribe("ApprovalGranted", handle_approval_granted)
+        
+        def handle_plan_revision(context):
+            """
+            Dipicu ketika user menekan [C] di Approval UI dan memberikan komentar/feedback.
+            Nexa akan membuat ulang plan berdasarkan feedback tersebut.
+            """
+            from nexa.core.ai.planner import AIPlannerEngine, PlannerContext
+            from nexa.core.utils.spinner import Spinner
+            import datetime
+            import dataclasses
+            from nexa.core.models.enums import EventPriority
+            from nexa.core.events.bus import EventContext
+            
+            comment = context.payload.get("comment", "")
+            original_plan = context.payload.get("original_plan", {})
+            
+            if not comment:
+                print("[!] Revision diminta tanpa komentar.")
+                return
+            
+            # Serialize original plan to text for context
+            if dataclasses.is_dataclass(original_plan):
+                original_plan_text = str(dataclasses.asdict(original_plan))[:1000]
+            elif isinstance(original_plan, dict):
+                original_plan_text = str(original_plan)[:1000]
+            else:
+                original_plan_text = str(original_plan)[:1000]
+            
+            revision_goal = (
+                f"PLAN REVISION REQUEST\n"
+                f"User Feedback: {comment}\n\n"
+                f"Original Plan Summary (for context):\n{original_plan_text}\n\n"
+                f"Please generate a REVISED plan that incorporates the user's feedback above."
+            )
+            
+            print(f"\n[*] Generating revised plan berdasarkan feedback Anda...\n")
+            
+            planner_context = PlannerContext(
+                project_path=self.cwd,
+                knowledge_context="",
+                project_facts={},
+                pinned_memory=[],
+                conversation_memory=self.memory.load_session_messages(self.session_id, limit=4),
+                user_goal=revision_goal
+            )
+            
+            planner = AIPlannerEngine(bus=self.bus)
+            with Spinner("Revising Plan..."):
+                report = planner.plan(planner_context, session_id=self.session_id)
+                
+            if report.success:
+                GREEN = '\033[92m'
+                RESET = '\033[0m'
+                print(f"\n{GREEN}{report.to_markdown()}{RESET}\n")
+                
+                self.bus.publish(EventContext(
+                    event_name="BeforeApproval",
+                    timestamp=datetime.datetime.now().isoformat(),
+                    source="PlanRevision",
+                    priority=EventPriority.HIGH,
+                    session_id=self.session_id,
+                    payload={
+                        "files": getattr(report.plan, "affected_files", []) if not isinstance(report.plan, dict) else report.plan.get("affected_files", []),
+                        "plan": report.plan
+                    }
+                ))
+            else:
+                print(f"\n[!] Plan Revision Failed: {report.error_message}\n")
+                
+        self.bus.subscribe("PlanRevisionRequested", handle_plan_revision)
+        
         # Inisialisasi Workspace Manager (Sprint 5)
         from nexa.core.agent.workspace import WorkspaceManager
         self.workspace = WorkspaceManager(self.cwd)

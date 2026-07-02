@@ -320,7 +320,7 @@ def handle(args):
             planner = AIPlannerEngine()
             from nexa.core.utils.spinner import Spinner
             with Spinner("Planning Execution..."):
-                report = planner.plan(planner_context)
+                report = planner.plan(planner_context, session_id=runtime.session_id)
                 
             if report.success:
                 print("\n" + report.to_markdown() + "\n")
@@ -610,17 +610,24 @@ def handle(args):
                     final_context += auto_context
                     
                 from nexa.core.ai.planner import AIPlannerEngine, PlannerContext
+                
+                # --- Clarification Gate (tahap 0.5) ---
+                # Tanya user jika goal terlalu ambigu sebelum pipeline LLM dimulai
+                from nexa.core.ai.cognitive.engines.clarification import ClarificationEngine
+                clarification_engine = ClarificationEngine()
+                enriched_goal = clarification_engine.ask_user(cmd)
+                
                 planner_context = PlannerContext(
                     project_path=cwd,
                     knowledge_context=final_context,
                     project_facts=facts_manager.get_all(cwd),
                     pinned_memory=pins_manager.get_all(cwd),
                     conversation_memory=memory_manager.load_session_messages(runtime.session_id, limit=6),
-                    user_goal=cmd
+                    user_goal=enriched_goal
                 )
                 planner = AIPlannerEngine()
                 with Spinner("Planning Execution..."):
-                    report = planner.plan(planner_context)
+                    report = planner.plan(planner_context, session_id=runtime.session_id)
                 if report.success:
                     GREEN = '\033[92m'
                     RESET = '\033[0m'

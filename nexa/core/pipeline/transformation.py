@@ -54,9 +54,41 @@ class TransformationEngine:
                     except Exception:
                         pass
                 
+                # --- AST Patch Engine: SEARCH/REPLACE Block Format ---
+                # For MODIFY: LLM only returns changed blocks, not full file.
+                # For CREATE: LLM returns full file (no choice here, it's new).
+                if action == "MODIFY":
+                    if not original_content:
+                        # Prevent hallucinated file modifications!
+                        results.append(TransformationResult(step, f"ERROR: Target file {target} does not exist. Cannot modify."))
+                        continue
+                        
+                    system_msg = (
+                        "You are a precise code patch generator.\n"
+                        "You will be given a file and a description of what to change.\n"
+                        "You MUST output ONLY the specific SEARCH/REPLACE blocks for the changes, in this EXACT format:\n\n"
+                        "<<<< SEARCH\n"
+                        "... exact original lines to find ...\n"
+                        "====\n"
+                        "... new replacement lines ...\n"
+                        ">>>> REPLACE\n\n"
+                        "RULES:\n"
+                        "1. SEARCH block must match the original file EXACTLY (whitespace included).\n"
+                        "2. You can have MULTIPLE blocks if changing multiple locations.\n"
+                        "3. Output NOTHING else — no explanations, no markdown, no extra text.\n"
+                        "4. Keep search blocks as SHORT as possible (only the lines you are changing + 1-2 lines of context)."
+                    )
+                    user_msg = f"Target: {target}\nChange Description: {desc}\n\nOriginal File Content:\n{original_content}\n\nOutput SEARCH/REPLACE blocks ONLY."
+                else:
+                    system_msg = (
+                        "You are a pure code generator.\n"
+                        "Output ONLY the complete raw code for the new file, without any markdown formatting, explanations, or reasoning."
+                    )
+                    user_msg = f"Target: {target}\nDescription: {desc}\n\nOutput the full raw code."
+                    
                 messages = [
-                    {"role": "system", "content": "You are a pure code generator. Output ONLY the raw code for the requested file, without markdown formatting or reasoning. You MUST output the ENTIRE file completely rewritten with the changes applied. Do NOT output partial snippets. Do NOT output diffs. Output the FULL file contents from start to finish."},
-                    {"role": "user", "content": f"Target: {target}\nDescription: {desc}\n\nOriginal File Content:\n{original_content}\n\nOutput the full raw code."}
+                    {"role": "system", "content": system_msg},
+                    {"role": "user", "content": user_msg}
                 ]
                 
                 if self.provider:

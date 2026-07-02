@@ -99,9 +99,25 @@ class AIPlannerEngine:
         )
         return prompt
 
-    def plan(self, context: PlannerContext, session_id: str = "default_session") -> PlannerReport:
+    def plan(self, context: PlannerContext, session_id: int = 0) -> PlannerReport:
         start_time = time.time()
         timestamp = datetime.datetime.now().isoformat()
+        
+        # Hierarchical Memory: Connect to the appropriate session
+        from nexa.core.ai.memory.hierarchical import HierarchicalMemory
+        hm = HierarchicalMemory(session_id=session_id)
+        
+        # Inject Long-Term Rules and Session Trail into knowledge context
+        memory_context = hm.build_context_for_llm(project_path=context.project_path)
+        if memory_context:
+            context = PlannerContext(
+                project_path=context.project_path,
+                knowledge_context=context.knowledge_context + "\n" + memory_context,
+                project_facts=context.project_facts,
+                pinned_memory=context.pinned_memory,
+                conversation_memory=context.conversation_memory,
+                user_goal=context.user_goal
+            )
         
         if self.bus:
             self.bus.publish(EventContext(
@@ -113,30 +129,47 @@ class AIPlannerEngine:
                 payload={"goal": context.user_goal}
             ))
             
+        from nexa.core.ai.cognitive.engines.intent_resolver import IntentResolver
         from nexa.core.ai.cognitive.engines.hypothesis import HypothesisEngine
         from nexa.core.ai.cognitive.engines.acquisition import KnowledgeAcquisitionEngine
         from nexa.core.ai.cognitive.engines.reasoning import ReasoningEngine
         from nexa.core.ai.cognitive.engines.planning import PlanningEngine
         
-        # 1. Intent & Hypothesis (LLM Call 1)
+        # 0. Intent Resolution (Rule Engine)
+        print("       [Cognitive Layer] Resolving Intent...")
+        intent_resolver = IntentResolver()
+        capabilities = intent_resolver.resolve(context.user_goal)
+        print(f"       [Cognitive Layer] Detected Capabilities: {capabilities}")
+        
+        # 1. Hypothesis (LLM Call 1)
         print("       [Cognitive Layer] Generating Hypotheses...")
         hypothesis_engine = HypothesisEngine()
         hypothesis_result = hypothesis_engine.generate(
             user_goal=context.user_goal, 
             project_facts=context.project_facts,
             knowledge_context=context.knowledge_context,
-            conversation_memory=context.conversation_memory
+            conversation_memory=context.conversation_memory,
+            capabilities=capabilities
         )
+        # Store hypotheses in Working Memory
+        hm.working.set("hypotheses", [h.description for h in hypothesis_result.hypotheses])
+        hm.session.record("hypothesis", f"Generated {len(hypothesis_result.hypotheses)} hypotheses for: {context.user_goal[:80]}")
         
         # 2. Knowledge Acquisition (Deterministic - No LLM)
         print("       [Cognitive Layer] Acquiring Knowledge Deterministically...")
         acquisition_engine = KnowledgeAcquisitionEngine(context.project_path)
         evidence_context = acquisition_engine.gather(hypothesis_result)
+        # Store evidence count in Working Memory
+        found_count = sum(1 for e in evidence_context.evidences if e.found)
+        hm.working.set("evidence_count", found_count)
+        hm.session.record("acquisition", f"Gathered {found_count}/{len(evidence_context.evidences)} evidence items")
         
         # 3. Reasoning (LLM Call 2)
         print("       [Cognitive Layer] Reasoning & Validating Evidence...")
         reasoning_engine = ReasoningEngine()
         reasoning_result = reasoning_engine.analyze(evidence_context, context.user_goal)
+        hm.working.set("root_cause", reasoning_result.root_cause[:200] if reasoning_result.root_cause else "")
+        hm.session.record("reasoning", f"Root Cause (confidence {reasoning_result.confidence}%): {reasoning_result.root_cause[:150]}")
         
         # 4. Planning (LLM Call 3)
         print("       [Cognitive Layer] Formulating Execution Plan...")
@@ -144,6 +177,9 @@ class AIPlannerEngine:
         plan = planning_engine.build(reasoning_result, context.user_goal)
         
         success, error, validated_plan = self.validator.validate_dataclass(plan)
+        
+        # Flush Working Memory to Session Trail
+        hm.flush_working_to_session(goal_summary=context.user_goal[:60])
         
         duration = time.time() - start_time
         

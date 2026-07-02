@@ -43,7 +43,10 @@ class PlanningEngine:
             "    }\n"
             "  ]\n"
             "}\n"
-            "CRITICAL: Do NOT invent files. Base everything on the provided reasoning. ONLY output JSON."
+            "CRITICAL RULES:\n"
+            "1. Do NOT invent files. Base everything on the provided reasoning.\n"
+            "2. If a file was NOT successfully found in the evidence, you MUST NOT schedule a MODIFY action for it. You can only CREATE new files if explicitly required, but you cannot MODIFY files that were not proven to exist.\n"
+            "3. ONLY output JSON."
         )
         
         prompt = (

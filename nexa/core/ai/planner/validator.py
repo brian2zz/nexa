@@ -53,7 +53,4 @@ class PlanValidator:
         if not plan.goal:
             return False, "Missing goal", None
             
-        if not plan.work_items:
-            return False, "Missing work_items. AI must define at least one work item.", None
-            
         return True, "", plan

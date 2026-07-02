@@ -69,6 +69,7 @@ class ApprovalUI:
         print(" [A] Approve       [R] Reject")
         print(" [D] View Diff     [P] View Patch")
         print(" [F] View Files    [T] Run Verification")
+        print(" [C] Comment/Review Plan")
         print(" [Q] Abort")
         print("═" * 50)
         
@@ -135,5 +136,32 @@ class ApprovalUI:
                 print("   ✔ pytest (PASS)")
                 print("   ✔ ruff (PASS)\n")
                 
+            elif choice == 'C':
+                print("\n[Nexa] Masukkan komentar atau feedback Anda untuk plan ini.")
+                print("       Nexa akan membuat ulang plan berdasarkan masukan Anda.")
+                print("       (Tekan Enter kosong untuk batal)")
+                comment = input("Komentar > ").strip()
+                if not comment:
+                    print("[!] Komentar kosong. Kembali ke menu approval.\n")
+                    continue
+                
+                print(f"\n[*] Menerima feedback: '{comment}'")
+                print("[*] Menerbitkan event PlanRevisionRequested...\n")
+                from nexa.core.models.enums import EventPriority
+                import datetime
+                self.bus.publish(EventContext(
+                    event_name="PlanRevisionRequested",
+                    timestamp=datetime.datetime.now().isoformat(),
+                    source="ApprovalUI",
+                    priority=EventPriority.HIGH,
+                    session_id="",
+                    payload={
+                        "original_plan": self.payload.get("plan"),
+                        "comment": comment
+                    },
+                    correlation_id=correlation_id
+                ))
+                self.is_waiting = False
+                
             else:
-                print("[!] Invalid option.")
+                print("[!] Pilihan tidak valid. Ketik A, R, C, D, P, F, T, atau Q.")
