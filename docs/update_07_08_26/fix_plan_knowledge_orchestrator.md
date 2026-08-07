@@ -129,8 +129,8 @@ Hal-hal berikut **tidak** disentuh pada iterasi ini (bisa dijadwalkan terpisah):
 | Item | Status |
 | :--- | :--- |
 | Rencana disusun | ✅ 07 Agustus 2026 |
-| Langkah 1: fix registrasi tool | ⏳ Belum |
-| Langkah 2: integration test | ⏳ Belum |
-| Langkah 3: verifikasi test | ⏳ Belum |
-| Langkah 4: commit | ⏳ Belum |
-| Langkah 5: push | ⏳ Belum |
+| Langkah 1: fix registrasi tool | ✅ Selesai |
+| Langkah 2: integration test | ✅ Selesai |
+| Langkah 3: verifikasi test | ✅ Selesai |
+| Langkah 4: commit | ✅ Selesai |
+| Langkah 5: push | ⏳ Menunggu User |
