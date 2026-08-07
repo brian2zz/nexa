@@ -23,13 +23,13 @@ def registry():
         "git_status", 
         dummy_git_status, 
         {}, 
-        metadata=ToolMetadata("git_status", cost=1, latency="fast", category="git", read_only=True, priority=100)
+        metadata=ToolMetadata("git_status", cost=1, latency="fast", category="git", read_only=True, priority=100, capabilities=["git_context"])
     )
     reg.register(
         "git_diff", 
         dummy_git_diff, 
         {}, 
-        metadata=ToolMetadata("git_diff", cost=5, latency="medium", category="git", read_only=True, priority=90)
+        metadata=ToolMetadata("git_diff", cost=5, latency="medium", category="git", read_only=True, priority=90, capabilities=["git_context"])
     )
     reg.register(
         "write_file", 

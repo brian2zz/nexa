@@ -57,12 +57,12 @@ def test_tool_prioritizer_capability_routing():
     
     # Requesting file lookup capability
     req = KnowledgeRequest(need="find_file")
-    tools = prioritizer.prioritize(req)
+    tools = prioritizer._get_relevant_tools(req)
     assert len(tools) == 1
-    assert tools[0]["function"]["name"] == "file_lookup"
+    assert tools[0].name == "file_lookup"
     
     # Requesting content search capability
     req = KnowledgeRequest(need="content_search")
-    tools = prioritizer.prioritize(req)
+    tools = prioritizer._get_relevant_tools(req)
     assert len(tools) == 1
-    assert tools[0]["function"]["name"] == "content_search"
+    assert tools[0].name == "content_search"
