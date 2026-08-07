@@ -1,7 +1,9 @@
 import os
 import json
 from nexa.core.agent.indexer import WorkspaceIndexer
-
+from nexa.core.ai.knowledge.cache.sqlite import SQLiteCache
+from nexa.core.ai.knowledge.summarizer import RegexSummarizer
+from nexa.core.ai.knowledge.dependency import DependencyParser
 class FileTool:
     """
     Domain-specific tool for interacting with Files (Read-Only).
@@ -11,6 +13,10 @@ class FileTool:
         self.indexer = WorkspaceIndexer(workspace_path)
         # Scan on init since we don't have a startup hook yet
         self.indexer.scan_workspace(async_scan=True)
+        db_path = os.path.join(workspace_path, ".nexa_cache.db")
+        self.cache = SQLiteCache(db_path=db_path)
+        self.summarizer = RegexSummarizer(cache=self.cache)
+        self.dependency_parser = DependencyParser(cache=self.cache)
 
     def find(self, extension: str = None, name: str = None) -> str:
         """
@@ -60,12 +66,21 @@ class FileTool:
                 
                 code_block = "".join(lines[start_idx:end_idx])
                 
+                # C.1: Enhance with summary and dependencies
+                ext = os.path.splitext(filepath)[1].lower()
+                lang = "python" if ext == ".py" else ("php" if ext == ".php" else ("javascript" if ext in [".js", ".jsx", ".ts", ".tsx"] else "unknown"))
+                
+                summary_obj = self.summarizer.summarize(code_block, lang, filepath)
+                deps = self.dependency_parser.parse(code_block, lang, filepath)
+                
                 semantic_objects.append({
                     "type": res["type"],
                     "name": res["name"],
                     "file": filepath,
                     "lines": [start_line, end_line],
-                    "code": code_block
+                    "code": code_block,
+                    "summary": summary_obj.__dict__ if hasattr(summary_obj, "__dict__") else summary_obj,
+                    "dependencies": [d[0] for d in deps]
                 })
             except Exception as e:
                 pass

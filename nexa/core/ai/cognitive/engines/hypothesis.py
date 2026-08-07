@@ -44,7 +44,7 @@ class HypothesisEngine:
         self.provider = ProviderFactory.create()
 
     def generate(self, user_goal: str,
-                 project_facts: Dict = None, conversation_memory: List[Dict] = None, evidence_bundle = None) -> HypothesisResult:
+                 project_facts: Dict = None, conversation_memory: List[Dict] = None, evidence_bundle = None, active_schemas: list = None) -> HypothesisResult:
 
         sys_prompt = (
             "You are the Nexa Hypothesis Engine.\n"
@@ -67,6 +67,10 @@ class HypothesisEngine:
         )
 
         prompt = f"User Goal: {user_goal}\n"
+        if active_schemas:
+            prompt += f"\nAvailable Tools Capabilities:\n{json.dumps(active_schemas, indent=2)}\n"
+            prompt += "(Use the available tools capabilities to form your search_targets. E.g., if you have 'read_symbol', target specific function names.)\n"
+        
         if evidence_bundle:
             prompt += f"\nEvidence Gathered So Far:\n{evidence_bundle.to_context_text()}"
 

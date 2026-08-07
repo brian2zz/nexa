@@ -81,6 +81,58 @@ class PatchEngine:
                     summary="Modify block success"
                 )
                 patches.append(patch_obj)
+        elif "@@ " in generated_code and ("-" in generated_code or "+" in generated_code):
+            target_file = request.target_files[0] if request.target_files else "unknown.py"
+            old_content = self._read_file_safe(request.repository_root, target_file)
+            
+            if old_content is None:
+                warnings.append(f"File {target_file} tidak ditemukan di repository.")
+            else:
+                import re
+                # Naive unified diff applier for MVP
+                blocks = re.split(r"@@.*?@@", generated_code)
+                headers = re.findall(r"@@.*?@@", generated_code)
+                
+                new_content = old_content
+                # Sometimes split gives text before the first @@
+                start_idx = 1 if len(blocks) > len(headers) else 0
+                
+                for i in range(len(headers)):
+                    hunk_text = blocks[start_idx + i]
+                    hunk_lines = hunk_text.split("\n")
+                    
+                    search_lines = []
+                    replace_lines = []
+                    
+                    for line in hunk_lines:
+                        if not line: continue
+                        if line.startswith("-"): search_lines.append(line[1:])
+                        elif line.startswith("+"): replace_lines.append(line[1:])
+                        elif line.startswith(" "): 
+                            search_lines.append(line[1:])
+                            replace_lines.append(line[1:])
+                            
+                    search_block = "\n".join(search_lines).strip()
+                    replace_block = "\n".join(replace_lines).strip()
+                    
+                    if search_block and search_block in new_content:
+                        new_content = new_content.replace(search_block, replace_block)
+                    elif search_block:
+                        # Try a looser match (ignore whitespace)
+                        new_content = new_content.replace(search_block.replace("\r", ""), replace_block.replace("\r", ""))
+                        warnings.append("Hunk matched with whitespace relaxation.")
+                
+                patch_obj = PatchObject(
+                    path=target_file,
+                    operation=Operation.MODIFY,
+                    old_hash=self._hash_content(old_content),
+                    new_hash=self._hash_content(new_content),
+                    old_content="[Hunks applied]",
+                    new_content=new_content,
+                    diff="[Unified Diff Patch Applied]",
+                    summary="Unified diff applied"
+                )
+                patches.append(patch_obj)
         else:
             # Fallback jika hanya mengembalikan full file
             target_file = request.target_files[0] if request.target_files else "unknown.py"

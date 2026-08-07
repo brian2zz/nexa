@@ -162,8 +162,8 @@ loop tak terbatas).
 | Item | Status |
 | :--- | :--- |
 | Audit & artefact rencana | ✅ 07 Agustus 2026 |
-| Tahap A: stabilisasi | ⏳ Belum |
-| Tahap B: refactor orde pipeline | ⏳ Belum |
+| Tahap A: stabilisasi | ✅ Selesai |
+| Tahap B: refactor orde pipeline | ✅ Selesai |
 | C.1 Knowledge/Call Graph | ⏳ Belum |
 | C.2 Semantic Cache | ⏳ Belum |
 | C.3 Dynamic Tools | ⏳ Belum |

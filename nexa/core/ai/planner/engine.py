@@ -143,6 +143,14 @@ class AIPlannerEngine:
         needs = intent_resolver.resolve(context.user_goal)
         print(f"       [Cognitive Layer] Needs: {[n.value for n in needs]}")
 
+        # C.3: Filter schema tools based on capabilities to inform LLM
+        from nexa.core.agent.tools.registry import ToolRegistry
+        from nexa.core.agent.tools.knowledge import register_knowledge_tools
+        temp_registry = ToolRegistry()
+        register_knowledge_tools(temp_registry, context.project_path)
+        caps = [n.value for n in needs]
+        active_schemas = temp_registry.get_schemas_by_capabilities(caps)
+
         # ── STEP 2: HypothesisEngine → HypothesisResult  (LLM #1, tools=[])
         print("       [Cognitive Layer] Generating Hypotheses to guide search...")
         hypothesis_engine = HypothesisEngine()
@@ -150,6 +158,7 @@ class AIPlannerEngine:
             user_goal=context.user_goal,
             project_facts=context.project_facts,
             conversation_memory=context.conversation_memory,
+            active_schemas=active_schemas
         )
         hm.working.set("hypotheses", [h.get("description","") for h in hypothesis_result.hypotheses])
         hm.session.record("hypothesis",
