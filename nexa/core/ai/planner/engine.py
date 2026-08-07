@@ -138,16 +138,42 @@ class AIPlannerEngine:
         from nexa.core.ai.cognitive.engines.planning import PlanningEngine
 
         # ── STEP 1: IntentResolver → Need[]  (Rule Engine, no LLM)
-        print("       [Cognitive Layer] Resolving Intent → Needs...")
+        print("       [Cognitive Layer] Resolving Intent -> Needs...")
         intent_resolver = IntentResolver()
         needs = intent_resolver.resolve(context.user_goal)
         print(f"       [Cognitive Layer] Needs: {[n.value for n in needs]}")
 
-        # ── STEP 2: KnowledgeOrchestrator → EvidenceBundle  (ONLY tool caller)
+        # ── STEP 2: HypothesisEngine → HypothesisResult  (LLM #1, tools=[])
+        print("       [Cognitive Layer] Generating Hypotheses to guide search...")
+        hypothesis_engine = HypothesisEngine()
+        hypothesis_result = hypothesis_engine.generate(
+            user_goal=context.user_goal,
+            project_facts=context.project_facts,
+            conversation_memory=context.conversation_memory,
+        )
+        hm.working.set("hypotheses", [h.get("description","") for h in hypothesis_result.hypotheses])
+        hm.session.record("hypothesis",
+            f"Generated {len(hypothesis_result.hypotheses)} hypotheses for: {context.user_goal[:80]}")
+
+        # Extract search targets from hypotheses to enrich hints
+        hypothesis_hints = {}
+        for h in hypothesis_result.hypotheses:
+            targets = h.get("search_targets", [])
+            for t in targets:
+                if "." in t:
+                    hypothesis_hints["file_name"] = t
+                    hypothesis_hints["target_file"] = t
+                else:
+                    hypothesis_hints["search_query"] = t
+                    hypothesis_hints["keyword"] = t
+
+        # ── STEP 3: KnowledgeOrchestrator → EvidenceBundle  (ONLY tool caller)
         print("       [Cognitive Layer] Knowledge Orchestrator acquiring evidence...")
         hints = CapabilityResolver.build_hints(
             context.user_goal, needs, project_facts=context.project_facts
         )
+        hints.update(hypothesis_hints)
+
         orchestrator = KnowledgeOrchestrator(
             workspace_path=context.project_path,
             tool_budget=5
@@ -163,19 +189,6 @@ class AIPlannerEngine:
         hm.session.record("acquisition",
             f"Evidence: {len(evidence_bundle.needs_satisfied)} satisfied, "
             f"{len(evidence_bundle.needs_failed)} gaps")
-
-        # ── STEP 3: HypothesisEngine → HypothesisResult  (LLM #1, tools=[])
-        print("       [Cognitive Layer] Generating Hypotheses from evidence...")
-        hypothesis_engine = HypothesisEngine()
-        hypothesis_result = hypothesis_engine.generate(
-            user_goal=context.user_goal,
-            evidence_bundle=evidence_bundle,
-            project_facts=context.project_facts,
-            conversation_memory=context.conversation_memory,
-        )
-        hm.working.set("hypotheses", [h.get("description","") for h in hypothesis_result.hypotheses])
-        hm.session.record("hypothesis",
-            f"Generated {len(hypothesis_result.hypotheses)} hypotheses for: {context.user_goal[:80]}")
 
         # ── STEP 4: ReasoningEngine → ReasoningResult  (LLM #2, tools=[])
         print("       [Cognitive Layer] Reasoning & Validating Evidence...")

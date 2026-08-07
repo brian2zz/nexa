@@ -98,7 +98,7 @@ class PlanFormatter:
             md += "\n"
             
         if plan.risk_analysis:
-            md += "### ⚠️ Risk Analysis\n\n"
+            md += "### [!] Risk Analysis\n\n"
             for r in plan.risk_analysis:
                 md += f"- **{r.category}** (Prob: {r.probability}, Impact: {r.impact})\n"
                 md += f"  - *Mitigation:* {r.mitigation}\n"

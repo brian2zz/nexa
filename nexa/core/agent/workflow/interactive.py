@@ -56,7 +56,7 @@ class ApprovalUI:
                         
                         print(f"  {idx}. {cmd}")
                         print(f"     Risk: {risk_color}{risk}{reset} | Strategy: {strategy}")
-                print("─" * 50)
+                print("-" * 50)
                 
         estimated_duration = execution_plan.get("estimated_time", "Unknown") if is_dict else getattr(execution_plan, "estimated_time", "Unknown")
         rollback_strat = execution_plan.get("rollback_strategy", "") if is_dict else getattr(execution_plan, "rollback_strategy", "")
@@ -64,14 +64,14 @@ class ApprovalUI:
         
         print(f" Estimated Duration : {estimated_duration}")
         print(f" Rollback           : {rollback}")
-        print("═" * 50)
+        print("=" * 50)
             
         print(" [A] Approve       [R] Reject")
         print(" [D] View Diff     [P] View Patch")
         print(" [F] View Files    [T] Run Verification")
         print(" [C] Comment/Review Plan")
         print(" [Q] Abort")
-        print("═" * 50)
+        print("=" * 50)
         
         self._prompt_loop(context.correlation_id)
         
@@ -133,8 +133,8 @@ class ApprovalUI:
             elif choice == 'T':
                 print("\n[*] Publishing TriggerVerification event...")
                 print("   (Simulasi: Workspace Verification Engine dijalankan...)")
-                print("   ✔ pytest (PASS)")
-                print("   ✔ ruff (PASS)\n")
+                print("   [OK] pytest (PASS)")
+                print("   [OK] ruff (PASS)\n")
                 
             elif choice == 'C':
                 print("\n[Nexa] Masukkan komentar atau feedback Anda untuk plan ini.")

@@ -3,14 +3,10 @@ from typing import List, Dict, Any, Optional
 
 
 @dataclass
-class Hypothesis:
-    id: str
-    description: str
-    confidence: int  # 0-100
-
-@dataclass
-class HypothesisResult:
-    hypotheses: List[Hypothesis] = field(default_factory=list)
+class SearchTarget:
+    type: str
+    query: str
+    path: str = "."
 
 @dataclass
 class Evidence:
@@ -25,9 +21,4 @@ class Evidence:
 class EvidenceContext:
     evidences: List[Evidence] = field(default_factory=list)
 
-@dataclass
-class ReasoningResult:
-    root_cause: str
-    evidence_trail: List[str] = field(default_factory=list)
-    contradictions_found: bool = False
-    confidence: int = 0
+

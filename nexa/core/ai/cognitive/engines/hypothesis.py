@@ -28,7 +28,9 @@ class HypothesisResult:
     def summary_text(self) -> str:
         lines = []
         for h in self.hypotheses:
-            lines.append(f"- [H{h.get('id','?')}] {h.get('description','')} (confidence: {h.get('confidence',0)}%)")
+            targets = ", ".join(h.get('search_targets', []))
+            target_str = f" [Targets: {targets}]" if targets else ""
+            lines.append(f"- [H{h.get('id','?')}] {h.get('description','')}{target_str}")
         return "\n".join(lines)
 
 
@@ -41,36 +43,32 @@ class HypothesisEngine:
     def __init__(self):
         self.provider = ProviderFactory.create()
 
-    def generate(self, user_goal: str, evidence_bundle: EvidenceBundle,
-                 project_facts: Dict = None, conversation_memory: List[Dict] = None) -> HypothesisResult:
+    def generate(self, user_goal: str,
+                 project_facts: Dict = None, conversation_memory: List[Dict] = None, evidence_bundle = None) -> HypothesisResult:
 
         sys_prompt = (
             "You are the Nexa Hypothesis Engine.\n"
-            "You receive a User Goal and an Evidence Bundle (already gathered from the codebase).\n"
-            "Your task is to analyze the evidence and generate 2-3 precise hypotheses about:\n"
-            "  - What is the root issue (if debugging/fixing)\n"
-            "  - Where and how to implement the change (if building/modifying)\n\n"
+            "Your task is to analyze the User Goal and generate 1-2 initial hypotheses about what needs to be changed or investigated.\n"
+            "You MUST also define 'search_targets' to guide the knowledge orchestrator in finding the right files or symbols.\n\n"
             "You MUST output STRICT JSON:\n"
             "{\n"
             "  \"hypotheses\": [\n"
             "    {\n"
             "      \"id\": \"H1\",\n"
             "      \"description\": \"string — precise interpretation of what needs to happen\",\n"
-            "      \"confidence\": integer (0-100),\n"
-            "      \"evidence_references\": [\"string — which evidence supports this\"]\n"
+            "      \"search_targets\": [\"string — e.g. file names, function names, or keywords to search for\"]\n"
             "    }\n"
             "  ]\n"
             "}\n"
             "CRITICAL RULES:\n"
-            "1. Base hypotheses ONLY on evidence provided. Do NOT invent.\n"
-            "2. If evidence shows the file exists and has specific content, reference it precisely.\n"
-            "3. If evidence is insufficient, state that in description with confidence <= 30.\n"
-            "4. ONLY output JSON."
+            "1. Generate reasonable guesses based on common software architecture.\n"
+            "2. 'search_targets' should be specific (e.g. 'auth_controller.py', 'btn-primary', 'login_user()').\n"
+            "3. ONLY output JSON."
         )
 
-        # Build prompt with evidence
-        evidence_text = evidence_bundle.to_context_text()
-        prompt = f"User Goal: {user_goal}\n\n{evidence_text}"
+        prompt = f"User Goal: {user_goal}\n"
+        if evidence_bundle:
+            prompt += f"\nEvidence Gathered So Far:\n{evidence_bundle.to_context_text()}"
 
         if project_facts:
             prompt += f"\n\nProject Facts: {json.dumps(project_facts)}"
@@ -99,6 +97,5 @@ class HypothesisEngine:
             return HypothesisResult(hypotheses=[{
                 "id": "H0",
                 "description": f"Failed to generate hypotheses: {e}",
-                "confidence": 0,
-                "evidence_references": []
+                "search_targets": []
             }])

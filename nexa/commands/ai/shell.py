@@ -524,9 +524,9 @@ def handle(args):
                                     clean_path = full_path
                                     found = True
                                     print(f"[*] Fuzzy Finder: Auto-corrected path to `{clean_path}`")
-                                    return False
+                                    break
                             if found:
-                                return False
+                                break
                     
                     if os.path.exists(clean_path):
                         if os.path.isfile(clean_path):
@@ -541,7 +541,7 @@ def handle(args):
                                     resolved_count = 0
                                     for target, rel_type in deps:
                                         if resolved_count >= 3:
-                                            return False
+                                            break
                                         resolved_path = resolver.resolve_python_import(target, clean_path)
                                         if resolved_path and resolved_path != clean_path and os.path.exists(resolved_path):
                                             # Interactive Permission Prompt

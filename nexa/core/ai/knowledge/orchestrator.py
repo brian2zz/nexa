@@ -65,7 +65,7 @@ class KnowledgeOrchestrator:
 
         for need, tool_bundle, unique_tools in bundle_plan:
             if budget_remaining <= 0:
-                print(f"       [Orchestrator] ⚠ Tool Budget habis ({self.tool_budget}). Berhenti.")
+                print(f"       [Orchestrator] [!] Tool Budget habis ({self.tool_budget}). Berhenti.")
                 bundle.needs_failed.append(need.value)
                 continue
 
