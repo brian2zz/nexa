@@ -114,6 +114,7 @@ class PlanningResult:
     work_items: List[WorkItem] = field(default_factory=list)
     acceptance_criteria: List[AcceptanceCriterion] = field(default_factory=list)
     risk_analysis: List[RiskItem] = field(default_factory=list)
+    clarifications: List[str] = field(default_factory=list)
     confidence: ConfidenceAssessment = field(default_factory=lambda: ConfidenceAssessment("LOW", 0, "", ""))
     provider_metadata: Dict[str, Any] = field(default_factory=dict)
 
@@ -179,6 +180,7 @@ class PlanningResult:
             work_items=work_items,
             acceptance_criteria=acceptance_criteria,
             risk_analysis=risk_analysis,
+            clarifications=data.get('clarifications', []),
             confidence=confidence,
             provider_metadata=data.get('provider_metadata', {})
         )

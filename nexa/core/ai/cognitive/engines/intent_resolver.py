@@ -1,34 +1,87 @@
+"""
+IntentResolver — Tahap 1: Resolusi Intent ke Need[]
+
+Rule Engine murni (tanpa LLM). Menganalisis user_goal dengan regex
+dan mengembalikan daftar Need yang semantik.
+
+Filosofi: "IntentResolver tidak tahu ada tool bernama 'git_status'.
+           Ia hanya tahu bahwa user membutuhkan REPOSITORY_STATUS."
+"""
+
 import re
 from typing import List
+from nexa.core.ai.knowledge.need import Need
+
 
 class IntentResolver:
     """
-    Tahap 1: Menganalisis User Goal menggunakan heuristic dasar (Rule Engine).
-    Tidak menggunakan LLM. Mengembalikan daftar 'capabilities' yang dibutuhkan.
+    Menganalisis User Goal menggunakan heuristic + regex.
+    Mengembalikan Need[] — bukan tools, bukan capabilities string.
     """
-    def __init__(self):
-        # Mapping dari keyword/regex ke daftar capabilities
-        self.rules = [
-            (r"(?i)\b(commit|git|push|pull|branch|merge)\b", ["git_status", "git_diff", "git_execute", "git_log"]),
-            (r"(?i)\b(baca|lihat|tampilkan|open|read)\b.*\b(file|berkas)\b", ["read_file", "file_lookup", "view_file"]),
-            (r"(?i)\b(apa fungsi|apa itu|bagaimana kerja|jelaskan|fungsi|class|metode|method)\b", ["read_symbol", "semantic_search", "content_search"]),
-            (r"(?i)\b(cari|temukan|search|find)\b", ["content_search", "search_code", "find_file"]),
-            (r"(?i)\b(error|bug|rusak|gagal|fix|perbaiki)\b", ["read_symbol", "content_search", "file_lookup", "read_file", "semantic_search"]),
-        ]
-        
-    def resolve(self, user_goal: str) -> List[str]:
+
+    # Mapping: (regex_pattern, [Need, ...])
+    # Urutan rule penting: yang lebih spesifik di atas.
+    RULES = [
+        # --- Git ---
+        (r"(?i)\b(commit|push|pull|merge|rebase|branch|stash)\b",
+            [Need.REPOSITORY_STATUS, Need.CODE_DIFF, Need.GIT_HISTORY, Need.CURRENT_BRANCH]),
+
+        (r"(?i)\b(status|perubahan apa|apa yang berubah|diff)\b",
+            [Need.REPOSITORY_STATUS, Need.CODE_DIFF]),
+
+        # --- Frontend / Template ---
+        (r"(?i)\b(template|html|tampilan|halaman|page|view|rubah.*warna|ganti.*warna|warna.*button|button.*warna|btn-\w+)\b",
+            [Need.TEMPLATE_LOOKUP, Need.CSS_INSPECTION]),
+
+        (r"(?i)\b(css|style|class|bootstrap|btn|tombol|button)\b",
+            [Need.CSS_INSPECTION, Need.TEMPLATE_LOOKUP]),
+
+        (r"(?i)\b(static|asset|javascript|js|css file|image|img)\b",
+            [Need.STATIC_ASSETS, Need.FILE_LOOKUP]),
+
+        # --- Code Intelligence ---
+        (r"(?i)\b(apa fungsi|bagaimana kerja|jelaskan|fungsi|class|method|metode|def |function)\b",
+            [Need.SYMBOL_DEFINITION, Need.CONTENT_SEARCH]),
+
+        (r"(?i)\b(cari|temukan|search|find|grep|dimana|where is)\b",
+            [Need.CONTENT_SEARCH, Need.FILE_LOOKUP]),
+
+        # --- File System ---
+        (r"(?i)\b(baca|lihat|tampilkan|open|read|isi file|konten)\b.*\b(file|berkas)\b",
+            [Need.FILE_CONTENT, Need.FILE_LOOKUP]),
+
+        (r"(?i)\b(struktur|directory|folder|tree)\b",
+            [Need.PROJECT_STRUCTURE]),
+
+        # --- Database / Model ---
+        (r"(?i)\b(model|database|db|migration|migrate|schema|table)\b",
+            [Need.MODEL_DEFINITION, Need.MIGRATION_STATUS]),
+
+        # --- Error / Bug ---
+        (r"(?i)\b(error|bug|rusak|gagal|fix|perbaiki|masalah|issue|crash)\b",
+            [Need.SYMBOL_DEFINITION, Need.CONTENT_SEARCH, Need.FILE_LOOKUP]),
+    ]
+
+    # Needs yang selalu disertakan sebagai fallback minimal
+    FALLBACK_NEEDS = [Need.CONTENT_SEARCH, Need.FILE_LOOKUP]
+
+    def resolve(self, user_goal: str) -> List[Need]:
         """
-        Mengembalikan daftar unik capability yang relevan berdasarkan goal.
+        Mengembalikan daftar Need yang unik dan relevan berdasarkan goal.
         """
-        capabilities = set()
-        
-        for pattern, caps in self.rules:
+        needs: set = set()
+
+        for pattern, matched_needs in self.RULES:
             if re.search(pattern, user_goal):
-                capabilities.update(caps)
-                
-        # Fallback if no specific intent matched
-        if not capabilities:
-            # We assume general coding task: needs symbols, files, and content search
-            capabilities.update(["read_symbol", "semantic_search", "file_lookup", "read_file", "content_search"])
-            
-        return list(capabilities)
+                needs.update(matched_needs)
+
+        # Sertakan Need yang sudah eksplisit disebutkan via path hints
+        if re.search(r'modules?/|templates?/|\.html\b', user_goal):
+            needs.add(Need.FILE_CONTENT)
+            needs.add(Need.TEMPLATE_LOOKUP)
+
+        # Fallback jika tidak ada rule yang cocok
+        if not needs:
+            needs.update(self.FALLBACK_NEEDS)
+
+        return list(needs)

@@ -41,12 +41,14 @@ class PlanningEngine:
             "      \"impact\": \"LOW|MEDIUM|HIGH\",\n"
             "      \"mitigation\": \"string\"\n"
             "    }\n"
-            "  ]\n"
+            "  ],\n"
+            "  \"clarifications\": [\"string (Questions for the user if evidence is missing)\"]\n"
             "}\n"
             "CRITICAL RULES:\n"
             "1. Do NOT invent files. Base everything on the provided reasoning.\n"
-            "2. If a file was NOT successfully found in the evidence, you MUST NOT schedule a MODIFY action for it. You can only CREATE new files if explicitly required, but you cannot MODIFY files that were not proven to exist.\n"
-            "3. ONLY output JSON."
+            "2. ALL knowledge acquisition has already been completed. DO NOT schedule exploratory work items like searching, finding, or reading files. Your Execution Plan must ONLY contain concrete modifications (CREATE, MODIFY, DELETE) or verification commands (pytest, build).\n"
+            "3. If essential evidence is missing (e.g., a file was not found), DO NOT invent search tasks. Instead, populate the `clarifications` array with specific questions for the user (e.g., 'File X tidak ditemukan, di mana path-nya?'). Leave work_items empty if you cannot proceed without this clarification.\n"
+            "4. ONLY output JSON."
         )
         
         prompt = (
@@ -107,6 +109,7 @@ class PlanningEngine:
                 work_items=work_items,
                 acceptance_criteria=ac,
                 risk_analysis=ra,
+                clarifications=data.get("clarifications", []),
                 confidence=ConfidenceAssessment(level="HIGH", score=reasoning.confidence, reason="Derived from deterministic evidence trail.", missing_information="None")
             )
         except Exception as e:

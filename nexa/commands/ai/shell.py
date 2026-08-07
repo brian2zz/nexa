@@ -634,8 +634,19 @@ def handle(args):
                     print(f"\n{GREEN}{report.to_markdown()}{RESET}\n")
                     work_items = getattr(report.plan, "work_items", []) if not isinstance(report.plan, dict) else report.plan.get("work_items", [])
                     stages = getattr(report.plan, "stages", []) if not isinstance(report.plan, dict) else report.plan.get("stages", [])
+                    clarifications = getattr(report.plan, "clarifications", []) if not isinstance(report.plan, dict) else report.plan.get("clarifications", [])
                     
-                    if not work_items and not stages:
+                    if clarifications:
+                        print(f"\n╔══ Nexa membutuhkan klarifikasi ══╗")
+                        print(f"║ Saya tidak menemukan bukti yang cukup untuk membuat rencana eksekusi.")
+                        print(f"╚═══════════════════════════════════╝\n")
+                        for idx, q in enumerate(clarifications, 1):
+                            print(f"[{idx}] {q}")
+                        print("\nSilakan berikan informasi di atas untuk melanjutkan.")
+                        memory_manager.save_message(runtime.session_id, "user", final_prompt)
+                        memory_manager.save_message(runtime.session_id, "assistant", "Meminta klarifikasi tambahan: " + " | ".join(clarifications))
+                        
+                    elif not work_items and not stages:
                         # LLM hanya melakukan investigasi (Search & Answer)
                         memory_manager.save_message(runtime.session_id, "user", final_prompt)
                         summary_text = getattr(report.plan, "summary", "") if not isinstance(report.plan, dict) else report.plan.get("summary", "")

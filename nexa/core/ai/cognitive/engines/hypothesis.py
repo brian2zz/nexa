@@ -1,87 +1,104 @@
+"""
+HypothesisEngine — Tahap 2: Pembuat Hipotesis
+
+Menerima EvidenceBundle yang sudah dikumpulkan oleh KnowledgeOrchestrator
+dan menghasilkan hipotesis tentang APA yang terjadi atau APA yang perlu dilakukan.
+
+Hipotesis di sini bersifat murni interpretatif — bukan instruksi pencarian.
+Semua pencarian sudah selesai sebelum tahap ini.
+
+Filosofi: "HypothesisEngine hanya berpikir. Ia tidak mencari."
+"""
+
 import json
-from typing import List, Dict, Any
+from typing import List, Dict, Optional
 from nexa.core.ai.providers.factory import ProviderFactory
-from nexa.core.ai.cognitive.schema import HypothesisResult, Hypothesis, SearchTarget
+from nexa.core.ai.knowledge.evidence import EvidenceBundle
+
+
+class HypothesisResult:
+    """Hasil interpretasi HypothesisEngine — daftar hipotesis teks."""
+    def __init__(self, hypotheses: List[Dict] = None):
+        self.hypotheses = hypotheses or []
+
+    def top(self, n: int = 2) -> List[Dict]:
+        sorted_h = sorted(self.hypotheses, key=lambda x: x.get("confidence", 0), reverse=True)
+        return sorted_h[:n]
+
+    def summary_text(self) -> str:
+        lines = []
+        for h in self.hypotheses:
+            lines.append(f"- [H{h.get('id','?')}] {h.get('description','')} (confidence: {h.get('confidence',0)}%)")
+        return "\n".join(lines)
+
 
 class HypothesisEngine:
     """
-    Tahap 2: Menghasilkan struktur data hipotesis berdasarkan Intent.
+    Tahap 2: Menghasilkan hipotesis berdasarkan Evidence yang sudah dikumpulkan.
+    tools=[] SELALU kosong — engine ini hanya berpikir.
     """
+
     def __init__(self):
         self.provider = ProviderFactory.create()
-        
-    def generate(self, user_goal: str, project_facts: Dict = None, knowledge_context: str = "", conversation_memory: List[Dict] = None, capabilities: List[str] = None) -> HypothesisResult:
+
+    def generate(self, user_goal: str, evidence_bundle: EvidenceBundle,
+                 project_facts: Dict = None, conversation_memory: List[Dict] = None) -> HypothesisResult:
+
         sys_prompt = (
             "You are the Nexa Hypothesis Engine.\n"
-            "Your task is to analyze the user's goal and generate 2-3 logical hypotheses about where the issue lies or where the feature should be built.\n"
-            "You MUST output STRICT JSON matching this schema exactly:\n"
+            "You receive a User Goal and an Evidence Bundle (already gathered from the codebase).\n"
+            "Your task is to analyze the evidence and generate 2-3 precise hypotheses about:\n"
+            "  - What is the root issue (if debugging/fixing)\n"
+            "  - Where and how to implement the change (if building/modifying)\n\n"
+            "You MUST output STRICT JSON:\n"
             "{\n"
             "  \"hypotheses\": [\n"
             "    {\n"
             "      \"id\": \"H1\",\n"
-            "      \"description\": \"string\",\n"
+            "      \"description\": \"string — precise interpretation of what needs to happen\",\n"
             "      \"confidence\": integer (0-100),\n"
-            "      \"search_targets\": [\n"
-            "        {\"type\": \"symbol\", \"query\": \"function_or_class_name\"},\n"
-            "        {\"type\": \"file\", \"query\": \"filename_or_path\"},\n"
-            "        {\"type\": \"content\", \"query\": \"broad_search_keyword\"}\n"
-            "      ]\n"
+            "      \"evidence_references\": [\"string — which evidence supports this\"]\n"
             "    }\n"
             "  ]\n"
             "}\n"
             "CRITICAL RULES:\n"
-            "1. Do NOT hallucinate frameworks (e.g., React/Typescript) if the project is something else (like Django/Python). Use the Knowledge Context (Directory Tree) to understand the project structure.\n"
-            "2. If you are not 100% sure of a file path, DO NOT guess the exact path or extension. Instead, use type 'content' with a broad keyword, or use type 'file' with just the base name (e.g., 'supplier' instead of 'SupplierIndex.tsx').\n"
-            "3. Do NOT output anything else except the JSON object."
+            "1. Base hypotheses ONLY on evidence provided. Do NOT invent.\n"
+            "2. If evidence shows the file exists and has specific content, reference it precisely.\n"
+            "3. If evidence is insufficient, state that in description with confidence <= 30.\n"
+            "4. ONLY output JSON."
         )
-        
-        prompt = f"User Goal: {user_goal}\n"
+
+        # Build prompt with evidence
+        evidence_text = evidence_bundle.to_context_text()
+        prompt = f"User Goal: {user_goal}\n\n{evidence_text}"
+
         if project_facts:
-            prompt += f"Project Facts: {json.dumps(project_facts)}\n"
-        if knowledge_context:
-            prompt += f"Knowledge Context (Directory Tree & Architecture):\n{knowledge_context}\n"
-        if capabilities:
-            prompt += f"Detected Capabilities (Use this hint to form relevant search targets): {capabilities}\n"
-            
+            prompt += f"\n\nProject Facts: {json.dumps(project_facts)}"
+
         messages = [{"role": "system", "content": sys_prompt}]
-        
+
         if conversation_memory:
             for msg in conversation_memory:
                 messages.append(msg)
-                
+
         messages.append({"role": "user", "content": prompt})
-        
-        raw_resp = self.provider.generate(messages, tools=[])
+
+        raw_resp = self.provider.generate(messages, tools=[])  # tools=[] — tidak boleh memanggil tool
         content = raw_resp.get("content", "") if isinstance(raw_resp, dict) else str(raw_resp)
-        
-        # Parse JSON
+
         try:
-            # Basic cleanup if wrapped in markdown
             if "```json" in content:
                 content = content.split("```json")[1].split("```")[0].strip()
             elif "```" in content:
                 content = content.split("```")[1].strip()
-                
+
             data = json.loads(content)
-            result = HypothesisResult()
-            for h in data.get("hypotheses", []):
-                targets = []
-                for st in h.get("search_targets", []):
-                    targets.append(SearchTarget(type=st.get("type"), query=st.get("query")))
-                
-                result.hypotheses.append(Hypothesis(
-                    id=h.get("id", ""),
-                    description=h.get("description", ""),
-                    confidence=h.get("confidence", 0),
-                    search_targets=targets
-                ))
-            return result
+            return HypothesisResult(hypotheses=data.get("hypotheses", []))
+
         except Exception as e:
-            # Fallback hypothesis
-            h = Hypothesis(
-                id="H0", 
-                description=f"Failed to generate hypotheses: {str(e)}", 
-                confidence=0,
-                search_targets=[]
-            )
-            return HypothesisResult(hypotheses=[h])
+            return HypothesisResult(hypotheses=[{
+                "id": "H0",
+                "description": f"Failed to generate hypotheses: {e}",
+                "confidence": 0,
+                "evidence_references": []
+            }])
