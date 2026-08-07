@@ -14,7 +14,9 @@ def test_capability_resolver_hints():
 def test_knowledge_orchestrator_initialization(mocker):
     # Mock registry so it doesn't try to access real git repo on init
     mocker.patch('nexa.core.ai.knowledge.orchestrator.ToolRegistry')
-    mocker.patch('nexa.core.ai.knowledge.orchestrator.register_knowledge_tools')
+    mocker.patch('nexa.core.agent.tools.knowledge.register_knowledge_tools')
+    mocker.patch('nexa.core.ai.knowledge.orchestrator.SQLiteCache')
+    mocker.patch('nexa.core.ai.knowledge.cache.sqlite.SQLiteCache')
     
     orchestrator = KnowledgeOrchestrator(workspace_path="/fake/path", tool_budget=5)
     assert orchestrator.tool_budget == 5
@@ -23,7 +25,9 @@ def test_knowledge_orchestrator_initialization(mocker):
 def test_orchestrator_budget_limit(mocker):
     # If needs require more than tool_budget, it should stop
     mocker.patch('nexa.core.ai.knowledge.orchestrator.ToolRegistry')
-    mocker.patch('nexa.core.ai.knowledge.orchestrator.register_knowledge_tools')
+    mocker.patch('nexa.core.agent.tools.knowledge.register_knowledge_tools')
+    mocker.patch('nexa.core.ai.knowledge.orchestrator.SQLiteCache')
+    mocker.patch('nexa.core.ai.knowledge.cache.sqlite.SQLiteCache')
     
     # Tool budget = 0 means it should fail all needs instantly
     orchestrator = KnowledgeOrchestrator(workspace_path="/fake/path", tool_budget=0)

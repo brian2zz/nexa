@@ -137,7 +137,7 @@ class AIPlannerEngine:
         from nexa.core.ai.cognitive.engines.reasoning import ReasoningEngine
         from nexa.core.ai.cognitive.engines.planning import PlanningEngine
 
-        # ── STEP 1: IntentResolver → Need[]  (Rule Engine, no LLM)
+        # ── STEP 1: IntentResolver -> Need[]  (Rule Engine, no LLM)
         print("       [Cognitive Layer] Resolving Intent -> Needs...")
         intent_resolver = IntentResolver()
         needs = intent_resolver.resolve(context.user_goal)
@@ -151,7 +151,7 @@ class AIPlannerEngine:
         caps = [n.value for n in needs]
         active_schemas = temp_registry.get_schemas_by_capabilities(caps)
 
-        # ── STEP 2: HypothesisEngine → HypothesisResult  (LLM #1, tools=[])
+        # ── STEP 2: HypothesisEngine -> HypothesisResult  (LLM #1, tools=[])
         print("       [Cognitive Layer] Generating Hypotheses to guide search...")
         hypothesis_engine = HypothesisEngine()
         hypothesis_result = hypothesis_engine.generate(
@@ -176,7 +176,7 @@ class AIPlannerEngine:
                     hypothesis_hints["search_query"] = t
                     hypothesis_hints["keyword"] = t
 
-        # ── STEP 3: KnowledgeOrchestrator → EvidenceBundle  (ONLY tool caller)
+        # ── STEP 3: KnowledgeOrchestrator -> EvidenceBundle  (ONLY tool caller)
         print("       [Cognitive Layer] Knowledge Orchestrator acquiring evidence...")
         hints = CapabilityResolver.build_hints(
             context.user_goal, needs, project_facts=context.project_facts
@@ -199,7 +199,7 @@ class AIPlannerEngine:
             f"Evidence: {len(evidence_bundle.needs_satisfied)} satisfied, "
             f"{len(evidence_bundle.needs_failed)} gaps")
 
-        # ── STEP 4: ReasoningEngine → ReasoningResult  (LLM #2, tools=[])
+        # ── STEP 4: ReasoningEngine -> ReasoningResult  (LLM #2, tools=[])
         print("       [Cognitive Layer] Reasoning & Validating Evidence...")
         reasoning_engine = ReasoningEngine()
         reasoning_result = reasoning_engine.analyze(
@@ -211,14 +211,14 @@ class AIPlannerEngine:
         hm.session.record("reasoning",
             f"Root Cause (confidence {reasoning_result.confidence}%): {reasoning_result.root_cause[:150]}")
 
-        # ── STEP 5: PlanningEngine → PlanningResult  (LLM #3, tools=[])
+        # ── STEP 5: PlanningEngine -> PlanningResult  (LLM #3, tools=[])
         print("       [Cognitive Layer] Formulating Execution Plan...")
         planning_engine = PlanningEngine()
         plan = planning_engine.build(reasoning_result, context.user_goal)
 
         success, error, validated_plan = self.validator.validate_dataclass(plan)
 
-        # Flush Working Memory → Session Trail
+        # Flush Working Memory -> Session Trail
         hm.flush_working_to_session(goal_summary=context.user_goal[:60])
 
         duration = time.time() - start_time

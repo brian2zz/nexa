@@ -10,17 +10,7 @@ Filosofi: "ReasoningEngine hanya membaca dan menyimpulkan. Ia tidak mencari."
 import json
 from nexa.core.ai.providers.factory import ProviderFactory
 from nexa.core.ai.knowledge.evidence import EvidenceBundle
-from nexa.core.ai.cognitive.engines.hypothesis import HypothesisResult
-
-
-class ReasoningResult:
-    """Hasil analisis ReasoningEngine."""
-    def __init__(self, root_cause: str, evidence_trail: list = None,
-                 contradictions_found: bool = False, confidence: int = 0):
-        self.root_cause = root_cause
-        self.evidence_trail = evidence_trail or []
-        self.contradictions_found = contradictions_found
-        self.confidence = confidence
+from nexa.core.ai.cognitive.schema import ReasoningResult, HypothesisResult
 
 
 class ReasoningEngine:

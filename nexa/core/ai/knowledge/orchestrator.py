@@ -31,7 +31,8 @@ from nexa.core.ai.knowledge.evidence import (
     EvidenceBundle, FileEvidence, SymbolEvidence, SearchEvidence, GitEvidence
 )
 from nexa.core.agent.tools.registry import ToolRegistry
-from nexa.core.agent.tools.knowledge import register_knowledge_tools
+from nexa.core.ai.knowledge.cache.sqlite import SQLiteCache
+import os
 
 TOOL_BUDGET = 5  # Max bundle calls per siklus
 
@@ -46,7 +47,10 @@ class KnowledgeOrchestrator:
         self.workspace_path = workspace_path
         self.tool_budget = tool_budget
         self.registry = ToolRegistry()
-        register_knowledge_tools(self.registry, workspace_path)
+        db_path = os.path.join(workspace_path, ".nexa_cache.db")
+        self.cache = SQLiteCache(db_path=db_path)
+        from nexa.core.agent.tools.knowledge import register_knowledge_tools
+        register_knowledge_tools(self.registry, workspace_path, cache=self.cache)
 
 
     def gather(self, needs: List[Need], context_hints: dict = None) -> EvidenceBundle:

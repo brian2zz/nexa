@@ -2,8 +2,8 @@ from nexa.core.agent.tools.knowledge.file import FileTool
 from nexa.core.agent.tools.knowledge.search import SearchTool
 from nexa.core.agent.tools.models import ToolMetadata
 
-def register_knowledge_tools(registry, cwd: str):
-    file_tool = FileTool(workspace_path=cwd)
+def register_knowledge_tools(registry, cwd: str, cache=None):
+    file_tool = FileTool(workspace_path=cwd, cache=cache)
     search_tool = SearchTool(workspace_path=cwd)
     
     # We expose the domain capabilities to the Planner (KnowledgeRequest)

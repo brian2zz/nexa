@@ -101,23 +101,16 @@ loop tak terbatas).
    bila perlu sinkron.
 4. Test: pipeline menghasilkan plan valid; budget tetap dihormati.
 
-### Tahap C — Fitur Phase 5 yang Belum Ada
+### Tahap C: Advanced Capabilities
+#### C.1 Knowledge Graph / Call Graph (belum)
+- Update `indexer.py` untuk parser `ast.Call` (mencatat siapa memanggil siapa).
+- Simpan `call_graph` di sqlite dan tambahkan ke `KnowledgeOrchestrator` context.
+- Update `_get_symbol_info` di `nexa/core/agent/tools/knowledge/symbols.py`. Tool `read_symbol` diperkaya: tambah field `summary` + `dependencies` (sesuai contoh object di blueprint:38-44).
+- Test golden: query simbol mengembalikan metadata kaya, dan call graph terpetakan.
 
-#### C.1 Semantic Indexing: Knowledge Graph & Call Graph
-- `agent/indexer.py`: tambah tabel `call_graph` (pemanggil → dipanggil) dan
-  `dependency_graph` (file-level, sudah ada sebagian di `knowledge/graph.py`).
-- Perluas `_parse_python_ast` (dan strategi bahasa lain) untuk menangkap
-  `CALLS` (relasi yang dideklarasikan tapi belum pernah diproduksi,
-  `knowledge/models.py:47`).
-- Tool `read_symbol` diperkaya: tambah field `summary` + `dependencies`
-  (sesuai contoh object di blueprint:38-44).
-- Test golden: query simbol mengembalikan metadata kaya.
-
-#### C.2 Hidupkan Semantic Cache
-- Wire `ai/knowledge/cache/sqlite.py` (SQLiteCache) ke `KnowledgeOrchestrator`
-  — cache hasil reasoning/symbol per path+hash, bukan memparsing ulang.
-- Memoization pada `summarizer.py`/`dependency.py` sudah pakai MemoryCache;
-  ganti ke SQLiteCache untuk persistensi antar sesi.
+#### C.2 Semantic Cache (belum)
+- Wire `ai/knowledge/cache/sqlite.py` ke `KnowledgeOrchestrator` per path+hash.
+- Ubah memoization pada `summarizer.py`/`dependency.py` menggunakan cache SQLite agar persisten antar sesi.
 - Test: query kedua memakai cache (hit rate > 0, tidak re-parse).
 
 #### C.3 Capability-Based Dynamic Tools (aktifkan)

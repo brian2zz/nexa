@@ -151,6 +151,20 @@ class PatchEngine:
                 )
                 patches.append(patch_obj)
 
+        # C.4: Validasi AST untuk file Python
+        valid_patches = []
+        for p in patches:
+            if p.path.endswith('.py') and p.new_content:
+                try:
+                    import ast
+                    ast.parse(p.new_content)
+                    valid_patches.append(p)
+                except SyntaxError as e:
+                    warnings.append(f"AST Validation Error on {p.path}: {str(e)}")
+            else:
+                valid_patches.append(p)
+        patches = valid_patches
+
         if not patches:
             duration = time.time() - start_time
             if self.bus:

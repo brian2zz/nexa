@@ -8,10 +8,14 @@ class MockProvider(LLMProvider):
         intent = ""
         for msg in messages:
             content = msg.get("content", "").lower()
-            if "analyze" in content:
-                intent = "analyze"
-            elif "plan" in content:
+            if "nexa hypothesis engine" in content:
+                intent = "hypothesis"
+            elif "nexa reasoning engine" in content:
+                intent = "reasoning"
+            elif "nexa ai planner" in content or "planning engine" in content:
                 intent = "plan"
+            elif "analyze" in content:
+                intent = "analyze"
                 
         # If the old format is accidentally passed as string (for backward compatibility during transition)
         if isinstance(messages, str):
@@ -28,17 +32,54 @@ class MockProvider(LLMProvider):
             }
             content_response = json.dumps(data, indent=2)
             
+        elif intent == 'hypothesis':
+            data = {
+                "hypotheses": [
+                    {
+                        "description": "Mocked hypothesis",
+                        "search_targets": ["mocked_target.py"]
+                    }
+                ]
+            }
+            content_response = json.dumps(data, indent=2)
+            
+        elif intent == 'reasoning':
+            data = {
+                "root_cause": "Mocked root cause",
+                "evidence_trail": ["Found something in mocked_target.py"],
+                "contradictions_found": False,
+                "confidence": 95
+            }
+            content_response = json.dumps(data, indent=2)
+            
         elif intent == 'plan':
             data = {
-                "goal": "Implement JWT Authentication",
-                "complexity": "medium",
-                "risk": "low",
-                "steps": [
-                    {"title": "Setup JWT Library", "description": "Install djangorestframework-simplejwt and add to INSTALLED_APPS."},
-                    {"title": "Configure Settings", "description": "Set REST_FRAMEWORK defaults and configure SIMPLE_JWT settings like ACCESS_TOKEN_LIFETIME."},
-                    {"title": "Update URLs", "description": "Add token obtain and refresh endpoints to urls.py."},
-                    {"title": "Test Authentication", "description": "Verify token generation using postman or curl."}
-                ]
+                "objective": "Mocked plan objective",
+                "constraints": ["mock_constraint"],
+                "work_items": [
+                    {
+                        "title": "Mock Work Item",
+                        "description": "Do something mocky",
+                        "affected_files": ["mocked_target.py"],
+                        "objective": "Fix mock issue"
+                    }
+                ],
+                "acceptance_criteria": [
+                    {
+                        "description": "It works",
+                        "priority": "MUST",
+                        "verification_method": "pytest"
+                    }
+                ],
+                "risk_analysis": [
+                    {
+                        "category": "Performance",
+                        "probability": "LOW",
+                        "impact": "LOW",
+                        "mitigation": "None"
+                    }
+                ],
+                "clarifications": []
             }
             content_response = json.dumps(data, indent=2)
             

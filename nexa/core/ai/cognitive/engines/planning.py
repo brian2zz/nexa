@@ -1,6 +1,6 @@
 import json
 from nexa.core.ai.providers.factory import ProviderFactory
-from nexa.core.ai.cognitive.schema import ReasoningResult
+from nexa.core.ai.cognitive.engines.reasoning import ReasoningResult
 from nexa.core.ai.planner.schema import PlanningResult, WorkItem, AcceptanceCriterion, RiskItem, ConfidenceAssessment
 
 class PlanningEngine:

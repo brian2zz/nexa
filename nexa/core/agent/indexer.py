@@ -61,6 +61,18 @@ class WorkspaceIndexer:
                 )
             ''')
             
+            # C.1: Call Graph
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS call_graph (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    file_id INTEGER,
+                    caller_name TEXT,
+                    callee_name TEXT,
+                    line_no INTEGER,
+                    FOREIGN KEY(file_id) REFERENCES files(id) ON DELETE CASCADE
+                )
+            ''')
+            
             conn.commit()
 
     def scan_workspace(self, async_scan: bool = True):
@@ -107,7 +119,7 @@ class WorkspaceIndexer:
                         
                         # Phase 5: Semantic AST Indexing
                         if ext.lower() == '.py':
-                            symbols, imports = self._parse_python_ast(filepath)
+                            symbols, imports, calls = self._parse_python_ast(filepath)
                             for sym in symbols:
                                 cursor.execute('''
                                     INSERT INTO symbols (file_id, name, type, start_line, end_line)
@@ -118,6 +130,11 @@ class WorkspaceIndexer:
                                     INSERT INTO imports (file_id, name, source)
                                     VALUES (?, ?, ?)
                                 ''', (file_id, imp[0], imp[1]))
+                            for call in calls:
+                                cursor.execute('''
+                                    INSERT INTO call_graph (file_id, caller_name, callee_name, line_no)
+                                    VALUES (?, ?, ?, ?)
+                                ''', (file_id, call[0], call[1], call[2]))
                                 
                     except Exception:
                         # Ignore unreadable files
@@ -161,34 +178,75 @@ class WorkspaceIndexer:
             
         return results
 
-    def _parse_python_ast(self, filepath: str) -> tuple[List[tuple], List[tuple]]:
+    def _parse_python_ast(self, filepath: str) -> tuple[List[tuple], List[tuple], List[tuple]]:
         """
         Parses a python file using the built-in ast module.
-        Returns (symbols, imports)
+        Returns (symbols, imports, calls)
         symbols: [(name, type, start_line, end_line)]
         imports: [(name, source)]
+        calls: [(caller_name, callee_name, line_no)]
         """
         import ast
         symbols = []
         imports = []
+        calls = []
         try:
             with open(filepath, 'r', encoding='utf-8') as f:
                 content = f.read()
             tree = ast.parse(content)
-            for node in ast.walk(tree):
-                if isinstance(node, ast.ClassDef):
+            
+            # Helper to find current scope/caller
+            def get_caller(node, parents):
+                for p in reversed(parents):
+                    if isinstance(p, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                        return p.name
+                return "<module>"
+
+            # Using NodeVisitor to track parents
+            class Visitor(ast.NodeVisitor):
+                def __init__(self):
+                    self.parents = []
+                    
+                def generic_visit(self, node):
+                    self.parents.append(node)
+                    super().generic_visit(node)
+                    self.parents.pop()
+                    
+                def visit_ClassDef(self, node):
                     symbols.append((node.name, 'class', node.lineno, getattr(node, 'end_lineno', node.lineno)))
-                elif isinstance(node, ast.FunctionDef) or isinstance(node, ast.AsyncFunctionDef):
+                    self.generic_visit(node)
+                    
+                def visit_FunctionDef(self, node):
                     symbols.append((node.name, 'function', node.lineno, getattr(node, 'end_lineno', node.lineno)))
-                elif isinstance(node, ast.Import):
+                    self.generic_visit(node)
+                    
+                def visit_AsyncFunctionDef(self, node):
+                    symbols.append((node.name, 'function', node.lineno, getattr(node, 'end_lineno', node.lineno)))
+                    self.generic_visit(node)
+                    
+                def visit_Import(self, node):
                     for alias in node.names:
                         imports.append((alias.name, None))
-                elif isinstance(node, ast.ImportFrom):
+                    self.generic_visit(node)
+                    
+                def visit_ImportFrom(self, node):
                     for alias in node.names:
                         imports.append((alias.name, node.module))
+                    self.generic_visit(node)
+                    
+                def visit_Call(self, node):
+                    if isinstance(node.func, ast.Name):
+                        caller = get_caller(node, self.parents)
+                        calls.append((caller, node.func.id, node.lineno))
+                    elif isinstance(node.func, ast.Attribute):
+                        caller = get_caller(node, self.parents)
+                        calls.append((caller, node.func.attr, node.lineno))
+                    self.generic_visit(node)
+            
+            Visitor().visit(tree)
         except Exception:
             pass
-        return symbols, imports
+        return symbols, imports, calls
 
     def query_symbols(self, name: str) -> List[Dict]:
         """

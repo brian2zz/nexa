@@ -11,6 +11,10 @@ membaca EvidenceBundle yang dihasilkan oleh package ini.
 
 from nexa.core.ai.knowledge.need import Need
 from nexa.core.ai.knowledge.evidence import EvidenceBundle
-from nexa.core.ai.knowledge.orchestrator import KnowledgeOrchestrator, CapabilityResolver
+def __getattr__(name):
+    if name in {"KnowledgeOrchestrator", "CapabilityResolver"}:
+        import nexa.core.ai.knowledge.orchestrator as _orchestrator
+        return getattr(_orchestrator, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 __all__ = ["Need", "EvidenceBundle", "KnowledgeOrchestrator", "CapabilityResolver"]

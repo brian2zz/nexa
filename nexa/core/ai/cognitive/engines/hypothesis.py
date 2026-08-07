@@ -14,24 +14,7 @@ import json
 from typing import List, Dict, Optional
 from nexa.core.ai.providers.factory import ProviderFactory
 from nexa.core.ai.knowledge.evidence import EvidenceBundle
-
-
-class HypothesisResult:
-    """Hasil interpretasi HypothesisEngine — daftar hipotesis teks."""
-    def __init__(self, hypotheses: List[Dict] = None):
-        self.hypotheses = hypotheses or []
-
-    def top(self, n: int = 2) -> List[Dict]:
-        sorted_h = sorted(self.hypotheses, key=lambda x: x.get("confidence", 0), reverse=True)
-        return sorted_h[:n]
-
-    def summary_text(self) -> str:
-        lines = []
-        for h in self.hypotheses:
-            targets = ", ".join(h.get('search_targets', []))
-            target_str = f" [Targets: {targets}]" if targets else ""
-            lines.append(f"- [H{h.get('id','?')}] {h.get('description','')}{target_str}")
-        return "\n".join(lines)
+from nexa.core.ai.cognitive.schema import HypothesisResult
 
 
 class HypothesisEngine:

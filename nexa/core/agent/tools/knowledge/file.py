@@ -1,20 +1,23 @@
 import os
 import json
 from nexa.core.agent.indexer import WorkspaceIndexer
-from nexa.core.ai.knowledge.cache.sqlite import SQLiteCache
 from nexa.core.ai.knowledge.summarizer import RegexSummarizer
 from nexa.core.ai.knowledge.dependency import DependencyParser
 class FileTool:
     """
     Domain-specific tool for interacting with Files (Read-Only).
     """
-    def __init__(self, workspace_path: str):
+    def __init__(self, workspace_path: str, cache=None):
         self.workspace_path = workspace_path
         self.indexer = WorkspaceIndexer(workspace_path)
         # Scan on init since we don't have a startup hook yet
         self.indexer.scan_workspace(async_scan=True)
-        db_path = os.path.join(workspace_path, ".nexa_cache.db")
-        self.cache = SQLiteCache(db_path=db_path)
+        if cache:
+            self.cache = cache
+        else:
+            from nexa.core.ai.knowledge.cache.sqlite import SQLiteCache
+            db_path = os.path.join(workspace_path, ".nexa_cache.db")
+            self.cache = SQLiteCache(db_path=db_path)
         self.summarizer = RegexSummarizer(cache=self.cache)
         self.dependency_parser = DependencyParser(cache=self.cache)
 
