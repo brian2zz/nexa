@@ -47,16 +47,7 @@ class KnowledgeOrchestrator:
         self.tool_budget = tool_budget
         self.registry = ToolRegistry()
         register_knowledge_tools(self.registry, workspace_path)
-        self._register_git_tools()
 
-    def _register_git_tools(self):
-        """Register Git tools jika belum ada."""
-        # Git tools didaftarkan secara opsional
-        try:
-            from nexa.core.agent.tools.git import register_git_tools
-            register_git_tools(self.registry, self.workspace_path)
-        except ImportError:
-            pass  # Git tools tidak wajib
 
     def gather(self, needs: List[Need], context_hints: dict = None) -> EvidenceBundle:
         """

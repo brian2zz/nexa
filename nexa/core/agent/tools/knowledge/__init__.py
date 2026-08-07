@@ -91,6 +91,26 @@ def register_knowledge_tools(registry, cwd: str):
         metadata=ToolMetadata(name="content_search", cost=10, latency="slow", category="search", read_only=True, priority=80, capabilities=["content_search", "search_code"])
     )
 
+    registry.register(
+        "file_tree",
+        file_tool.tree,
+        schema={
+            "type": "function",
+            "function": {
+                "name": "file_tree",
+                "description": "Returns a flat directory listing.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Path to list"}
+                    },
+                    "required": []
+                }
+            }
+        },
+        metadata=ToolMetadata(name="file_tree", cost=2, latency="fast", category="file", read_only=True, priority=95, capabilities=["file_tree", "project_structure"])
+    )
+
     # Register Git tools if cwd is provided
     if cwd:
         from .git import register_git_tools

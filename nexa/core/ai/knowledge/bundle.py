@@ -132,7 +132,7 @@ BUNDLE_REGISTRY: Dict[Need, ToolBundle] = {
     Need.PROJECT_FACTS: ToolBundle(
         name="Project Facts",
         description="Mengumpulkan fakta umum tentang proyek (bahasa, framework, dsb)",
-        tool_names=["file_lookup"],
+        tool_names=["file_tree"],
         budget_cost=1,
     ),
 }

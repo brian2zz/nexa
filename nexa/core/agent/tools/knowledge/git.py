@@ -66,6 +66,17 @@ class GitTool:
         except Exception:
             return "Git not installed or not found"
 
+    def log(self, limit: int = 10) -> str:
+        """Returns the recent git commit history."""
+        try:
+            result = subprocess.run(
+                ["git", "log", "--oneline", f"-{limit}"],
+                cwd=self.cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8', errors='replace'
+            )
+            return result.stdout if result.returncode == 0 else result.stderr
+        except Exception as e:
+            return f"Git Error: {e}"
+
     def execute(self, command: str) -> str:
         """Executes any git command and returns the output."""
         try:
@@ -96,6 +107,12 @@ def git_diff(cwd: str) -> str:
 
 def git_execute(cwd: str, command: str) -> str:
     return GitTool(cwd).execute(command)
+
+def git_current_branch(cwd: str) -> str:
+    return GitTool(cwd).current_branch()
+
+def git_log(cwd: str, limit: int = 10) -> str:
+    return GitTool(cwd).log(limit)
 
 GIT_STATUS_SCHEMA = {
     "type": "function",
@@ -141,7 +158,40 @@ GIT_EXECUTE_SCHEMA = {
     }
 }
 
+GIT_CURRENT_BRANCH_SCHEMA = {
+    "type": "function",
+    "function": {
+        "name": "git_current_branch",
+        "description": "Get the current git branch name.",
+        "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": []
+        }
+    }
+}
+
+GIT_LOG_SCHEMA = {
+    "type": "function",
+    "function": {
+        "name": "git_log",
+        "description": "Get recent git commits history.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "description": "Number of commits to return."
+                }
+            },
+            "required": []
+        }
+    }
+}
+
 def register_git_tools(registry, cwd: str):
     registry.register("git_status", lambda: git_status(cwd), GIT_STATUS_SCHEMA)
     registry.register("git_diff", lambda: git_diff(cwd), GIT_DIFF_SCHEMA)
     registry.register("git_execute", lambda command: git_execute(cwd, command), GIT_EXECUTE_SCHEMA)
+    registry.register("git_current_branch", lambda: git_current_branch(cwd), GIT_CURRENT_BRANCH_SCHEMA)
+    registry.register("git_log", lambda limit=10: git_log(cwd, limit), GIT_LOG_SCHEMA)
