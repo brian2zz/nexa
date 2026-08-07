@@ -192,6 +192,19 @@ def main():
             module.handle(args[1:])
             return
 
+        # Jika project terdeteksi tapi command tidak ada di opsi internal platform ini (e.g. build di flutter)
+        if detected_type != 'unknown':
+            print(f"[AUTO-DETECT] Project {detected_type.capitalize()} terdeteksi. Menjalankan '{command}' sebagai perintah native...")
+            if detected_type == 'django':
+                subprocess.run(['python', 'manage.py', command, *args[1:]])
+            elif detected_type == 'flutter':
+                subprocess.run(['flutter', command, *args[1:]], shell=(os.name == 'nt'))
+            elif detected_type == 'php' and os.path.exists('artisan'):
+                subprocess.run(['php', 'artisan', command, *args[1:]])
+            elif detected_type == 'php' and os.path.exists('package.json'):
+                subprocess.run(['npm', 'run', command, *args[1:]], shell=(os.name == 'nt'))
+            return
+
         # Jika gagal detect atau command hanya ada di 1 platform
         if len(options) == 1:
             platform = options[0]
