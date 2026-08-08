@@ -104,7 +104,7 @@ def handle(args):
         last_ai_response = ""
         from nexa.core.agent.runtime import NexaAgentRuntime
         runtime = NexaAgentRuntime(cwd=cwd)
-        print(f"[*] Started new chat session (ID: {runtime.session_id})")
+        print(f"[*] Started new chat session")
 
         provider_completer = WordCompleter(['ollama', 'deepseek', 'groq', 'gemini', 'mock'], ignore_case=True)
         path_completer = PathCompleter(only_directories=False, expanduser=True)
@@ -743,5 +743,27 @@ def handle(args):
                     print(f"[!] Chat Error: {e}\n")
 
         return True
+
+    import sys
+    if sys.stdout.isatty():
+        try:
+            from nexa.ui.app import NexaApp
+            from nexa.core.agent.session import SessionRecoveryManager
+            
+            # Session preamble before TUI starts
+            recovery = SessionRecoveryManager(runtime.memory)
+            recovered_id = recovery.prompt_recovery(runtime.cwd)
+            if recovered_id is not None:
+                runtime.session_id = recovered_id
+            else:
+                runtime.session_id = runtime.memory.create_session(runtime.cwd)
+                
+            runtime.enable_tui_mode()
+            app = NexaApp(command_handler, runtime)
+            app.run()
+            runtime.bus.shutdown(wait=True)
+            return
+        except Exception as e:
+            print(f"[!] Failed to start Textual UI: {e}. Falling back to basic shell.")
 
     runtime.start_loop(get_input, command_handler)

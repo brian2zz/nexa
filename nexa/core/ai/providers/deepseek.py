@@ -63,6 +63,48 @@ class DeepSeekProvider(LLMProvider):
         except requests.exceptions.RequestException as e:
             raise Exception(f"Error communicating with DeepSeek API: {str(e)}")
 
+    def stream(self, messages: List[Dict[str, str]], temperature: float = 0.2, tools: List[Dict[str, Any]] = None):
+        url = f"{self.host.rstrip('/')}/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": temperature,
+            "stream": True
+        }
+        if tools:
+            payload["tools"] = tools
+            
+        try:
+            import json
+            with requests.post(url, headers=headers, json=payload, stream=True, timeout=60) as response:
+                if response.status_code == 401:
+                    raise Exception("Unauthorized: Invalid DeepSeek API Key.")
+                elif response.status_code == 402:
+                    raise Exception("Payment Required: Insufficient balance in DeepSeek account.")
+                response.raise_for_status()
+                for line in response.iter_lines():
+                    if line:
+                        decoded = line.decode('utf-8')
+                        if decoded.startswith('data: '):
+                            json_str = decoded[6:]
+                            if json_str.strip() == "[DONE]":
+                                break
+                            try:
+                                data = json.loads(json_str)
+                                choices = data.get("choices", [])
+                                if choices:
+                                    delta = choices[0].get("delta", {})
+                                    if "content" in delta:
+                                        yield delta["content"]
+                            except json.JSONDecodeError:
+                                pass
+        except requests.exceptions.RequestException as e:
+            raise Exception(f"Error communicating with DeepSeek API Stream: {str(e)}")
+
     def health(self) -> bool:
         # DeepSeek currently doesn't have a specific public unauthenticated ping endpoint,
         # but returning True if API key is set is a reasonable fallback, or we can check balance.

@@ -28,6 +28,9 @@ class PipelineBus:
     def subscribe(self, event_filter: Union[str, Callable[[EventContext], bool]], subscriber: SubscriberCallable) -> None:
         self._subscribers.append((event_filter, subscriber))
 
+    def unsubscribe(self, event_filter: Union[str, Callable[[EventContext], bool]], subscriber: SubscriberCallable) -> None:
+        self._subscribers = [(f, s) for f, s in self._subscribers if not (f == event_filter and s == subscriber)]
+
     def _should_trigger(self, event_filter: Union[str, Callable[[EventContext], bool]], context: EventContext) -> bool:
         if callable(event_filter):
             return event_filter(context)

@@ -16,6 +16,7 @@ setup(
         "inquirer>=3.1.3",
         "groq>=0.4.0",
         "openai>=1.0.0",
+        "textual>=0.80",
     ],
     entry_points={
         "console_scripts": [

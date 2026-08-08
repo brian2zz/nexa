@@ -69,6 +69,47 @@ class GroqProvider(LLMProvider):
         except requests.exceptions.RequestException as e:
             raise Exception(f"Error communicating with Groq API: {str(e)}")
 
+    def stream(self, messages: List[Dict[str, str]], temperature: float = 0.2, tools: List[Dict[str, Any]] = None):
+        url = f"{self.host.rstrip('/')}/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": temperature,
+            "stream": True
+        }
+        if tools:
+            payload["tools"] = tools
+            payload["tool_choice"] = "auto"
+            
+        try:
+            import json
+            with requests.post(url, headers=headers, json=payload, stream=True, timeout=60) as response:
+                if response.status_code == 401:
+                    raise Exception("Unauthorized: Invalid Groq API Key.")
+                response.raise_for_status()
+                for line in response.iter_lines():
+                    if line:
+                        decoded = line.decode('utf-8')
+                        if decoded.startswith('data: '):
+                            json_str = decoded[6:]
+                            if json_str.strip() == "[DONE]":
+                                break
+                            try:
+                                data = json.loads(json_str)
+                                choices = data.get("choices", [])
+                                if choices:
+                                    delta = choices[0].get("delta", {})
+                                    if "content" in delta and delta["content"]:
+                                        yield delta["content"]
+                            except json.JSONDecodeError:
+                                pass
+        except requests.exceptions.RequestException as e:
+            raise Exception(f"Error communicating with Groq API Stream: {str(e)}")
+
     def health(self) -> bool:
         return bool(self.api_key)
 

@@ -52,6 +52,33 @@ class OllamaProvider(LLMProvider):
                 raise
             raise Exception(f"Error communicating with Ollama: {str(e)}")
 
+    def stream(self, messages: List[Dict[str, str]], temperature: float = 0.2, tools: List[Dict[str, Any]] = None):
+        url = f"{self.host.rstrip('/')}/api/chat"
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "stream": True,
+            "options": {
+                "temperature": temperature
+            }
+        }
+        try:
+            import json
+            with requests.post(url, json=payload, stream=True) as response:
+                if response.status_code == 404:
+                    raise Exception(f"Model '{self.model}' not found in Ollama. Please pull it first.")
+                response.raise_for_status()
+                for line in response.iter_lines():
+                    if line:
+                        data = json.loads(line)
+                        yield data.get("message", {}).get("content", "")
+        except requests.exceptions.ConnectionError:
+            raise Exception("Ollama server is not running. Please start Ollama before using AI Provider.")
+        except Exception as e:
+            if "Model" in str(e) and "not found" in str(e):
+                raise
+            raise Exception(f"Error communicating with Ollama: {str(e)}")
+
     def health(self) -> bool:
         url = f"{self.host.rstrip('/')}/api/tags"
         try:

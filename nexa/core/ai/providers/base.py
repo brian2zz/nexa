@@ -27,6 +27,15 @@ class LLMProvider(ABC):
         pass
 
     @abstractmethod
+    def stream(self, messages: List[Dict[str, str]], temperature: float = 0.2, tools: List[Dict[str, Any]] = None) -> Any:
+        """
+        Stream a response from the LLM based on a list of messages.
+        Should yield chunks of text or tool call objects as they arrive.
+        Fallback implementation can simply call generate() and yield the result.
+        """
+        pass
+
+    @abstractmethod
     def health(self) -> bool:
         """
         Check if the provider service is accessible.

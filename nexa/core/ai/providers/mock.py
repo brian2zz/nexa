@@ -93,6 +93,13 @@ class MockProvider(LLMProvider):
             "usage": {}
         }
 
+    def stream(self, messages: List[Dict[str, str]], temperature: float = 0.2, tools: List[Dict[str, Any]] = None):
+        res = self.generate(messages, temperature, tools)
+        content = res.get("content", "")
+        chunk_size = 5
+        for i in range(0, len(content), chunk_size):
+            yield content[i:i+chunk_size]
+
     def health(self) -> bool:
         return True
 

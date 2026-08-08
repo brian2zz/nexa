@@ -133,6 +133,54 @@ class GeminiProvider(LLMProvider):
         except Exception as e:
             raise Exception(f"Gemini API Error: {str(e)}")
 
+    def stream(self, messages: List[Dict[str, str]], temperature: float = 0.2, tools: List[Dict[str, Any]] = None):
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:streamGenerateContent?alt=sse&key={self.api_key}"
+        
+        headers = {
+            "Content-Type": "application/json"
+        }
+        
+        contents = []
+        system_instruction = None
+        
+        for msg in messages:
+            role = msg.get("role")
+            content = msg.get("content", "")
+            if role == "system":
+                system_instruction = content if system_instruction is None else system_instruction + "\n\n" + content
+            elif role == "user":
+                contents.append({"role": "user", "parts": [{"text": content}]})
+            elif role == "assistant":
+                contents.append({"role": "model", "parts": [{"text": content}]})
+                
+        payload = {
+            "contents": contents,
+            "generationConfig": {"temperature": temperature}
+        }
+        if system_instruction:
+            payload["systemInstruction"] = {"parts": [{"text": system_instruction}]}
+            
+        try:
+            with requests.post(url, headers=headers, json=payload, stream=True, timeout=60) as response:
+                response.raise_for_status()
+                for line in response.iter_lines():
+                    if line:
+                        decoded = line.decode('utf-8')
+                        if decoded.startswith('data: '):
+                            json_str = decoded[6:]
+                            try:
+                                data = json.loads(json_str)
+                                candidates = data.get("candidates", [])
+                                if candidates:
+                                    parts = candidates[0].get("content", {}).get("parts", [])
+                                    for part in parts:
+                                        if "text" in part:
+                                            yield part["text"]
+                            except json.JSONDecodeError:
+                                pass
+        except Exception as e:
+            raise Exception(f"Gemini API Stream Error: {str(e)}")
+
     def health(self) -> bool:
         return bool(self.api_key)
 

@@ -16,6 +16,7 @@ class NexaAgentRuntime:
     def __init__(self, cwd: str):
         self.cwd = cwd
         self.is_running = False
+        self.tui_mode = False
         self.bus = PipelineBus(max_workers=2)
         
         # Inisialisasi Logger
@@ -198,6 +199,11 @@ class NexaAgentRuntime:
         # Inisialisasi Workspace Manager (Sprint 5)
         from nexa.core.agent.workspace import WorkspaceManager
         self.workspace = WorkspaceManager(self.cwd)
+        
+    def enable_tui_mode(self):
+        """Enable TUI mode and disable legacy terminal approval UI."""
+        self.tui_mode = True
+        self.bus.unsubscribe("BeforeApproval", self.approval_ui.handle_before_approval)
         
     def start_loop(self, get_input_fn, command_handler=None):
         """
