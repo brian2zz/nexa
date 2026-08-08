@@ -89,38 +89,83 @@ class PatchEngine:
                 warnings.append(f"File {target_file} tidak ditemukan di repository.")
             else:
                 import re
-                # Naive unified diff applier for MVP
-                blocks = re.split(r"@@.*?@@", generated_code)
-                headers = re.findall(r"@@.*?@@", generated_code)
                 
+                content_lines = old_content.splitlines()
+                header_regex = re.compile(r"@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
+                
+                parts = header_regex.split(generated_code)
+                parsed_hunks = []
+                idx = 1
+                while idx < len(parts):
+                    start1 = int(parts[idx])
+                    count1 = int(parts[idx+1]) if parts[idx+1] else 1
+                    hunk_text = parts[idx+4]
+                    parsed_hunks.append({"start1": start1, "count1": count1, "hunk_text": hunk_text})
+                    idx += 5
+                    
+                parsed_hunks.sort(key=lambda x: x["start1"], reverse=True)
+                
+                fallback_needed = False
                 new_content = old_content
-                # Sometimes split gives text before the first @@
-                start_idx = 1 if len(blocks) > len(headers) else 0
                 
-                for i in range(len(headers)):
-                    hunk_text = blocks[start_idx + i]
-                    hunk_lines = hunk_text.split("\n")
+                for hunk in parsed_hunks:
+                    start1 = hunk["start1"]
+                    hunk_lines = hunk["hunk_text"].lstrip("\r\n").splitlines()
                     
                     search_lines = []
                     replace_lines = []
-                    
                     for line in hunk_lines:
-                        if not line: continue
                         if line.startswith("-"): search_lines.append(line[1:])
                         elif line.startswith("+"): replace_lines.append(line[1:])
                         elif line.startswith(" "): 
                             search_lines.append(line[1:])
                             replace_lines.append(line[1:])
+                        elif len(line) == 0:
+                            search_lines.append("")
+                            replace_lines.append("")
                             
-                    search_block = "\n".join(search_lines).strip()
-                    replace_block = "\n".join(replace_lines).strip()
+                    start_idx = max(0, start1 - 1)
+                    end_idx = start_idx + len(search_lines)
+                    target_slice = content_lines[start_idx:end_idx]
                     
-                    if search_block and search_block in new_content:
-                        new_content = new_content.replace(search_block, replace_block)
-                    elif search_block:
-                        # Try a looser match (ignore whitespace)
-                        new_content = new_content.replace(search_block.replace("\r", ""), replace_block.replace("\r", ""))
-                        warnings.append("Hunk matched with whitespace relaxation.")
+                    def norm(lines): return [l.strip() for l in lines]
+                    
+                    if norm(target_slice) == norm(search_lines) and len(search_lines) > 0:
+                        content_lines[start_idx:end_idx] = replace_lines
+                    else:
+                        warnings.append(f"Hunk at line {start1} failed strict line matching. Fallback triggered.")
+                        fallback_needed = True
+                        break
+                
+                if not fallback_needed and parsed_hunks:
+                    new_content = "\n".join(content_lines) + ("\n" if old_content.endswith("\n") else "")
+                else:
+                    # Fallback to naive string replace
+                    blocks = re.split(r"@@.*?@@", generated_code)
+                    headers = re.findall(r"@@.*?@@", generated_code)
+                    new_content = old_content
+                    start_idx = 1 if len(blocks) > len(headers) else 0
+                    for i in range(len(headers)):
+                        hunk_text = blocks[start_idx + i].lstrip("\r\n")
+                        hunk_lines = hunk_text.splitlines()
+                        search_lines = []
+                        replace_lines = []
+                        for line in hunk_lines:
+                            if line.startswith("-"): search_lines.append(line[1:])
+                            elif line.startswith("+"): replace_lines.append(line[1:])
+                            elif line.startswith(" "): 
+                                search_lines.append(line[1:])
+                                replace_lines.append(line[1:])
+                            elif len(line) == 0:
+                                search_lines.append("")
+                                replace_lines.append("")
+                        search_block = "\n".join(search_lines).strip()
+                        replace_block = "\n".join(replace_lines).strip()
+                        if search_block and search_block in new_content:
+                            new_content = new_content.replace(search_block, replace_block)
+                        elif search_block:
+                            new_content = new_content.replace(search_block.replace("\r", ""), replace_block.replace("\r", ""))
+                            warnings.append("Hunk matched with whitespace relaxation.")
                 
                 patch_obj = PatchObject(
                     path=target_file,

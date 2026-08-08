@@ -217,7 +217,11 @@ class KnowledgeOrchestrator:
                             file=sym.get("file", ""),
                             start_line=sym.get("lines", [0, 0])[0],
                             end_line=sym.get("lines", [0, 0])[1],
-                            code=sym.get("code", "")[:1500]
+                            code=sym.get("code", "")[:1500],
+                            summary=sym.get("summary", None),
+                            dependencies=sym.get("dependencies", []),
+                            callers=sym.get("callers", []),
+                            callees=sym.get("callees", [])
                         ))
             except Exception:
                 pass

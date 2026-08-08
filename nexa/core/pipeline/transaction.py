@@ -2,7 +2,9 @@ import time
 from enum import Enum
 from typing import List, Any, Tuple
 from nexa.core.pipeline.transformation import TransformationEngine, TransformationResult
-from nexa.core.pipeline.patch import PatchEngine, PatchApplier, PatchResult
+from nexa.core.pipeline.patch import PatchApplier, PatchResult as OldPatchResult
+from nexa.core.ai.patching.engine import PatchEngine
+from nexa.core.models.dto.patch import PatchRequest
 from nexa.core.pipeline.command import TerminalRunner
 from nexa.core.pipeline.rollback.backup import BackupRollbackStrategy
 from nexa.core.pipeline.verification import VerificationPipeline
@@ -41,7 +43,30 @@ class ExecutionTransaction:
             # 1. Transform & Patch
             print("[Transaction] [1/5] Melakukan kalkulasi Patch...")
             transform_results = self.transform_engine.transform(self.plan, cwd=self.cwd)
-            patches = self.patch_engine.calculate(transform_results)
+            
+            patches = []
+            for tr in transform_results:
+                action = tr.step.get("action", "").upper()
+                target = tr.step.get("target", "")
+                
+                if action == "CREATE":
+                    patches.append(OldPatchResult(target=target, action="CREATE", content=tr.raw_code))
+                elif action == "DELETE":
+                    patches.append(OldPatchResult(target=target, action="DELETE"))
+                elif action in ["COMMAND", "TERMINAL_COMMAND"]:
+                    patches.append(OldPatchResult(target=target, action="COMMAND", command=target))
+                elif action == "MODIFY":
+                    request = PatchRequest(
+                        transformation_result={"generated_code": tr.raw_code},
+                        repository_root=self.cwd,
+                        target_files=[target]
+                    )
+                    res = self.patch_engine.calculate_patch(request)
+                    if res.success and res.patches:
+                        for p in res.patches:
+                            patches.append(OldPatchResult(target=p.path, action="MODIFY", content=p.new_content))
+                    else:
+                        print(f"[!] Peringatan: Patch Engine menolak patch untuk {target}. Alasan: {res.summary}")
             
             # Ekstrak daftar file yang akan dimodifikasi
             files_to_modify = [p.target for p in patches if p.action in ["CREATE", "MODIFY", "DELETE"]]

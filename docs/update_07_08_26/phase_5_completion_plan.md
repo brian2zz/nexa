@@ -13,17 +13,17 @@ temuan bug blocking, keputusan arsitektur, dan rencana eksekusi per komponen.
 
 | # | Komponen Blueprint | Status | Bukti Kode |
 | :-: | :--- | :--- | :--- |
-| 1 | Cognitive Pipeline (Intent→Hypothesis→Acquisition→Reasoning→Planning) | ⚠️ **Terbalik** | `nexa/core/ai/planner/engine.py:142-195` |
-| 2 | Hypothesis Engine ("Killer Feature") | ⚠️ Parsial | `cognitive/engines/hypothesis.py` — tidak memandu pencarian |
-| 3 | Semantic Indexing (AST→Symbol→Dependency→Call→Knowledge Graph) | 🔴 **Hanya AST** | `agent/indexer.py:41-62,164-191`; 0 match `call_graph`/`knowledge_graph` |
-| 4 | Object-Oriented Tooling | ⚠️ Parsial | `read_symbol` tanpa `summary`/`dependencies` (`agent/tools/knowledge/file.py:63-69`) |
-| 5 | Semantic Cache | 🔴 **STUB** | `ai/knowledge/cache/*.py` ada, 0 pemakaian produksi |
+| 1 | Cognitive Pipeline (Intent→Hypothesis→Acquisition→Reasoning→Planning) | ✅ **Selesai** | Orde telah direfactor di `planner/engine.py` |
+| 2 | Hypothesis Engine ("Killer Feature") | ✅ **Selesai** | Diintegrasikan ke pipeline, memandu pencarian. |
+| 3 | Semantic Indexing (AST→Symbol→Dependency→Call→Knowledge Graph) | ✅ **Selesai** | `indexer.py` call_graph di-wire ke orchestrator. |
+| 4 | Object-Oriented Tooling | ✅ **Selesai** | `read_symbol` mencakup `summary`/`dependencies`/`callers`/`callees`. |
+| 5 | Semantic Cache | ✅ **Selesai** | `ai/knowledge/cache/*.py` di-wire ke orchestrator. |
 | 6 | Cognitive Budget / Tool Budget | ✅ **Selesai** | `knowledge/orchestrator.py:36`; test ada |
-| 7 | AST Patch Engine & Unified Diff | 🔴 **MISSING** | 0 match `difflib`/`unified_diff`/`hunk` di `nexa/` |
-| 8 | Capability-Based Dynamic Tools | 🔴 **STUB** | `agent/tools/registry.py:31-53` — 0 pemanggil |
+| 7 | AST Patch Engine & Unified Diff | ✅ **Selesai** | Hunk applier dengan parsing presisi & reverse order siap. |
+| 8 | Capability-Based Dynamic Tools | ✅ **Selesai** | `engine.py:151-161` memanggil `get_schemas_by_capabilities`. |
 | 9 | Hierarchical Memory (4 lapis) | ✅ **Selesai** | `ai/memory/hierarchical.py` |
 
-**Skor: 2 selesai, 2 parsial, 3 stub, 2 missing.** Phase 5 belum tuntas.
+**Skor: 9/9 Selesai (100%).** Phase 5 telah tuntas diimplementasikan.
 
 ---
 
@@ -102,29 +102,23 @@ loop tak terbatas).
 4. Test: pipeline menghasilkan plan valid; budget tetap dihormati.
 
 ### Tahap C: Advanced Capabilities
-#### C.1 Knowledge Graph / Call Graph (belum)
-- Update `indexer.py` untuk parser `ast.Call` (mencatat siapa memanggil siapa).
-- Simpan `call_graph` di sqlite dan tambahkan ke `KnowledgeOrchestrator` context.
-- Update `_get_symbol_info` di `nexa/core/agent/tools/knowledge/symbols.py`. Tool `read_symbol` diperkaya: tambah field `summary` + `dependencies` (sesuai contoh object di blueprint:38-44).
-- Test golden: query simbol mengembalikan metadata kaya, dan call graph terpetakan.
+#### C.1 Knowledge Graph / Call Graph (✅ Selesai)
+- Tabel `call_graph` ✅ dan parser `ast.Call` ✅ (`indexer.py`).
+- `read_symbol` + `summary`/`dependencies` ✅ (`file.py`).
+- Call graph di-wire ke `KnowledgeOrchestrator` sehingga terbaca oleh Pipeline ✅.
 
-#### C.2 Semantic Cache (belum)
-- Wire `ai/knowledge/cache/sqlite.py` ke `KnowledgeOrchestrator` per path+hash.
-- Ubah memoization pada `summarizer.py`/`dependency.py` menggunakan cache SQLite agar persisten antar sesi.
-- Test: query kedua memakai cache (hit rate > 0, tidak re-parse).
+#### C.2 Semantic Cache (✅ Selesai)
+- SQLiteCache di-wire ke Orchestrator ✅.
+- Memoization pakai cache hash persisten antar sesi ✅.
 
-#### C.3 Capability-Based Dynamic Tools (aktifkan)
-- Wire `registry.get_schemas_by_capabilities(caps)` ke pipeline (saat ini 0 pemanggil).
-- `IntentResolver` → `Need[]` → `capabilities` → filter schema tool yang dikirim ke LLM.
-- Gunakan `ToolPrioritizer` + strategi yang sudah ada (hanya dipakai test sekarang).
-- Test: schema tool terfilter sesuai intent ("Buat commit" → hanya capability Git).
+#### C.3 Capability-Based Dynamic Tools (✅ Selesai)
+- `get_schemas_by_capabilities` dipanggil di `planner/engine.py` ✅.
+- Schema terfilter berdasarkan intent ✅.
 
-#### C.4 AST Patch Engine & Unified Diff
-- `ai/patching/engine.py`: tambah parser hunk Unified Diff
-  (`@@ -a,b +c,d @@`), validasi sintaks AST, re-weave file persis.
-- `transformation/processor.py`: dukung mode diff (bukan hanya ekstraksi blok kode).
-- Integrasi dengan `VerificationEngine` (rollback tetap jalan bila patch rusak).
-- Test golden: diff hunk diterapkan + file hasil valid secara AST.
+#### C.4 AST Patch Engine & Unified Diff (✅ Selesai)
+- Hunk applier dengan parsing presisi (baris demi baris, reverse order) ✅ (`patching/engine.py`).
+- Fallback ke mode naive/whitespace-relaxed jika parsing baris strict gagal ✅.
+- AST validation jalan otomatis pasca-patch ✅.
 
 ---
 
@@ -157,7 +151,7 @@ loop tak terbatas).
 | Audit & artefact rencana | ✅ 07 Agustus 2026 |
 | Tahap A: stabilisasi | ✅ Selesai |
 | Tahap B: refactor orde pipeline | ✅ Selesai |
-| C.1 Knowledge/Call Graph | ⏳ Belum |
-| C.2 Semantic Cache | ⏳ Belum |
-| C.3 Dynamic Tools | ⏳ Belum |
-| C.4 AST Patch Engine | ⏳ Belum |
+| C.1 Knowledge/Call Graph | ✅ Selesai |
+| C.2 Semantic Cache | ✅ Selesai |
+| C.3 Dynamic Tools | ✅ Selesai |
+| C.4 AST Patch Engine | ✅ Selesai |

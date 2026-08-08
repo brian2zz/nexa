@@ -248,6 +248,25 @@ class WorkspaceIndexer:
             pass
         return symbols, imports, calls
 
+    def query_call_graph(self, symbol_name: str) -> Dict[str, List[str]]:
+        """
+        Returns callers (who calls symbol_name) and callees (who symbol_name calls).
+        """
+        callers = []
+        callees = []
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT DISTINCT caller_name FROM call_graph WHERE callee_name = ?", (symbol_name,))
+                for row in cursor.fetchall():
+                    callers.append(row[0])
+                cursor.execute("SELECT DISTINCT callee_name FROM call_graph WHERE caller_name = ?", (symbol_name,))
+                for row in cursor.fetchall():
+                    callees.append(row[0])
+        except sqlite3.Error:
+            pass
+        return {"callers": callers, "callees": callees}
+
     def query_symbols(self, name: str) -> List[Dict]:
         """
         Queries the database for symbols matching the name.

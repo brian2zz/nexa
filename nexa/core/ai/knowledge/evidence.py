@@ -31,6 +31,10 @@ class SymbolEvidence:
     start_line: int
     end_line: int
     code: str                 # Potongan kode yang relevan
+    summary: Optional[Dict[str, Any]] = None
+    dependencies: List[str] = field(default_factory=list)
+    callers: List[str] = field(default_factory=list)
+    callees: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -98,6 +102,14 @@ class EvidenceBundle:
 
         for sym in self.symbols:
             lines.append(f"\n[Symbol: {sym.name} ({sym.type})] @ {sym.file}:{sym.start_line}-{sym.end_line}")
+            if sym.summary:
+                lines.append(f"Summary: {sym.summary.get('description', '')}")
+            if sym.dependencies:
+                lines.append(f"Dependencies: {', '.join(sym.dependencies)}")
+            if sym.callers:
+                lines.append(f"Called By: {', '.join(sym.callers)}")
+            if sym.callees:
+                lines.append(f"Calls: {', '.join(sym.callees)}")
             lines.append(sym.code[:1000])
 
         for f in self.files:

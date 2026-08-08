@@ -16,6 +16,11 @@ class ResponseProcessor:
             result.explanation = raw_response.strip()
             return result
             
+        # Check if the response contains a Unified Diff (@@ -... +... @@)
+        if "@@ -" in raw_response and "+" in raw_response:
+            result.generated_code = raw_response
+            return result
+            
         # For code-generating modes, we extract markdown block
         pattern = r"```(?:\w+)?\n(.*?)```"
         match = re.search(pattern, raw_response, re.DOTALL)

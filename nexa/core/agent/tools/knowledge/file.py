@@ -75,6 +75,7 @@ class FileTool:
                 
                 summary_obj = self.summarizer.summarize(code_block, lang, filepath)
                 deps = self.dependency_parser.parse(code_block, lang, filepath)
+                call_graph = self.indexer.query_call_graph(res["name"])
                 
                 semantic_objects.append({
                     "type": res["type"],
@@ -83,7 +84,9 @@ class FileTool:
                     "lines": [start_line, end_line],
                     "code": code_block,
                     "summary": summary_obj.__dict__ if hasattr(summary_obj, "__dict__") else summary_obj,
-                    "dependencies": [d[0] for d in deps]
+                    "dependencies": [d[0] for d in deps],
+                    "callers": call_graph["callers"],
+                    "callees": call_graph["callees"]
                 })
             except Exception as e:
                 pass
