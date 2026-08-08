@@ -11,6 +11,8 @@ class WorkspaceIndexer:
     def __init__(self, workspace_path: str):
         self.workspace_path = workspace_path
         self.db_path = os.path.join(get_project_nexa_dir(workspace_path), "workspace.db")
+        self._scan_done = threading.Event()
+        self._scan_done.set() # Set initially in case scan is never called
         self._ensure_db()
 
     def _ensure_db(self):
@@ -79,12 +81,23 @@ class WorkspaceIndexer:
         """
         Scans the workspace and updates the SQLite database.
         """
+        self._scan_done.clear()
         if async_scan:
-            t = threading.Thread(target=self._do_scan)
+            t = threading.Thread(target=self._do_scan_wrapper)
             t.daemon = True
             t.start()
         else:
+            self._do_scan_wrapper()
+
+    def _do_scan_wrapper(self):
+        try:
             self._do_scan()
+        finally:
+            self._scan_done.set()
+            
+    def wait_for_scan(self, timeout: float = 10.0):
+        """Wait for the background scan to complete."""
+        self._scan_done.wait(timeout)
 
     def _do_scan(self):
         ignore_dirs = {'.git', 'node_modules', 'vendor', '__pycache__', '.nexa', '.venv', 'venv'}

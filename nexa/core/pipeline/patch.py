@@ -18,29 +18,6 @@ class SearchReplaceBlock:
         self.search = search
         self.replace = replace
 
-class PatchEngine:
-    """
-    Tugas: Mengubah TransformationResult (kode mentah) menjadi PatchResult yang siap diaplikasikan.
-    Mendukung SEARCH/REPLACE blocks dan CREATE actions.
-    """
-    def calculate(self, transform_results: List[TransformationResult]) -> List[PatchResult]:
-        patches = []
-        for tr in transform_results:
-            action = tr.step.get("action", "").upper()
-            target = tr.step.get("target", "")
-            
-            if action == "CREATE":
-                patches.append(PatchResult(target=target, action="CREATE", content=tr.raw_code))
-            elif action == "MODIFY":
-                # For MODIFY, the raw_code contains SEARCH/REPLACE blocks
-                patches.append(PatchResult(target=target, action="MODIFY", content=tr.raw_code))
-            elif action == "DELETE":
-                patches.append(PatchResult(target=target, action="DELETE"))
-            elif action in ["COMMAND", "TERMINAL_COMMAND"]:
-                patches.append(PatchResult(target=target, action="COMMAND", command=target))
-                
-        return patches
-
 
 class PatchApplier:
     """

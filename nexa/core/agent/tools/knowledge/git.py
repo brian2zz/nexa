@@ -1,4 +1,5 @@
 import subprocess
+import shlex
 from typing import Dict, Any
 
 class GitTool:
@@ -80,13 +81,25 @@ class GitTool:
     def execute(self, command: str) -> str:
         """Executes any git command and returns the output."""
         try:
-            if not command.startswith("git"):
+            try:
+                args = shlex.split(command)
+            except ValueError:
+                return "Error: Could not parse command."
+                
+            if not args or args[0] != "git":
                 return "Error: Only git commands are allowed."
+                
+            allowed_subcommands = {
+                "status", "diff", "log", "blame", "branch", "rev-parse",
+                "show", "remote", "tag", "stash", "ls-files"
+            }
             
-            # Use shlex to parse command string safely? Or just pass shell=True
+            if len(args) < 2 or args[1] not in allowed_subcommands:
+                return "Error: Command not in allowed list."
+            
             result = subprocess.run(
-                command,
-                cwd=self.cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8', errors='replace', shell=True
+                args,
+                cwd=self.cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8', errors='replace', shell=False
             )
             output = result.stdout if result.returncode == 0 else result.stderr
             if not output:

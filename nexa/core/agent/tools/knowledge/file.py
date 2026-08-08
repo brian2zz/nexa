@@ -25,6 +25,7 @@ class FileTool:
         """
         Queries the WorkspaceIndexer to find files quickly without disk walking.
         """
+        self.indexer.wait_for_scan()
         print(f"       [Debug] file_lookup called with extension={extension}, name={name}")
         results = self.indexer.query_files(extension=extension, name=name)
         if not results:
@@ -47,6 +48,7 @@ class FileTool:
         Phase 5: Read a specific symbol (function, class) from AST Index.
         Returns a rich semantic JSON object containing the exact lines of code.
         """
+        self.indexer.wait_for_scan()
         results = self.indexer.query_symbols(symbol_name)
         if not results:
             return f"Symbol '{symbol_name}' not found in any parsed files."
