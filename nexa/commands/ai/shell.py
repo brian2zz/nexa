@@ -749,6 +749,8 @@ def handle(args):
         try:
             from nexa.ui.app import NexaApp
             from nexa.core.agent.session import SessionRecoveryManager
+            from nexa.core.ai.providers.factory import ProviderFactory
+            from nexa.core.observability.usage_tracking import UsageTrackingProvider
             
             # Session preamble before TUI starts
             recovery = SessionRecoveryManager(runtime.memory)
@@ -759,9 +761,22 @@ def handle(args):
                 runtime.session_id = runtime.memory.create_session(runtime.cwd)
                 
             runtime.enable_tui_mode()
+
+            # --- WRAP provider agar mem-publish TokenUsage (HANYA untuk TUI) ---
+            _original_create = ProviderFactory.create.__func__  # classmethod unwrap
+
+            def _tracked_create(cls):
+                inner = _original_create(cls)      # panggil implementasi asli
+                return UsageTrackingProvider(inner, runtime.bus, lambda: runtime.session_id)
+
+            ProviderFactory.create = classmethod(_tracked_create)
+
             app = NexaApp(command_handler, runtime)
-            app.run()
-            runtime.bus.shutdown(wait=True)
+            try:
+                app.run()
+            finally:
+                ProviderFactory.create = classmethod(_original_create)  # restore
+                runtime.bus.shutdown(wait=True)
             return
         except Exception as e:
             print(f"[!] Failed to start Textual UI: {e}. Falling back to basic shell.")

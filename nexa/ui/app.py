@@ -7,7 +7,9 @@ from textual.widgets import Input, Static, Header, RichLog
 from textual import work
 from nexa.ui.bridge import Bridge, BusMessage
 from textual.reactive import reactive
-from nexa.ui.widgets.tool_panel import ToolPanel
+from nexa.ui.widgets.status_panel import StatusPanel
+from nexa import __version__ as NEXA_VERSION
+from nexa.config import Config
 from nexa.ui.screens.approval import ApprovalModal
 from nexa.ui.screens.palette import CommandPaletteModal
 from nexa.ui.widgets.chat_message import ChatMessage
@@ -74,9 +76,16 @@ class NexaApp(App):
         layout: vertical;
     }
     #transcript {
+        width: 1fr;
         height: 1fr;
         padding: 1;
         border: solid $surface;
+    }
+    #status-panel {
+        width: 40;
+        height: 1fr;
+        border-left: solid $primary;
+        background: $surface;
     }
     Input {
         dock: bottom;
@@ -88,20 +97,11 @@ class NexaApp(App):
         color: $text;
         content-align: center middle;
     }
-    #tool-panel {
-        width: 30%;
-        border-left: solid $primary;
-        display: none;
-    }
-    #tool-panel.-open {
-        display: block;
-    }
     """
     
     BINDINGS = [
         ("ctrl+c", "quit", "Quit"),
         ("ctrl+k", "palette", "Command Palette"),
-        ("f", "toggle_tools", "Toggle Tools"),
         ("pageup", "scroll_transcript_up", "Scroll Up"),
         ("pagedown", "scroll_transcript_down", "Scroll Down"),
     ]
@@ -116,7 +116,7 @@ class NexaApp(App):
         super().__init__()
         self.command_handler = command_handler
         self.runtime = runtime
-        self.tool_panel = ToolPanel(id="tool-panel")
+        self.status_panel = StatusPanel(id="status-panel")
         
     def compose(self) -> ComposeResult:
         yield Header()
@@ -124,7 +124,7 @@ class NexaApp(App):
             with VerticalScroll(id="transcript"):
                 # Initial greeting messages
                 pass
-            yield self.tool_panel
+            yield self.status_panel
             
         self.status_bar = StatusBar()
         yield self.status_bar
@@ -135,6 +135,17 @@ class NexaApp(App):
         # Bridge the bus
         Bridge.subscribe(self.runtime.bus, "*", self)
         
+        provider = Config.get("provider", "mock")
+        model = Config.get(f"{provider}.model", "unknown")
+        self.status_panel.set_info(
+            version=NEXA_VERSION,
+            project_path=self.runtime.cwd,
+            provider=provider,
+            model=model,
+            session_id=self.runtime.session_id,
+        )
+        self.status_panel.set_provider_rates(provider)
+
         # Override Textual's dummy stdout with our RedirectedStdout
         self.original_stdout = sys.stdout
         sys.stdout = RedirectedStdout(self)
@@ -197,16 +208,70 @@ class NexaApp(App):
     def set_status(self, text: str):
         self.status_bar.status_text = text
         
+    _EVENT_LABELS = {
+        "BeforePlanning": ("Planning started", "running"),
+        "AfterPlanning":  ("Planning complete", "ok"),
+        "PlanningFailed": ("Planning failed", "err"),
+        "BeforePatch":    ("Patching started", "running"),
+        "AfterPatch":     ("Patch applied", "ok"),
+        "PatchFailed":    ("Patch failed", "err"),
+        "BeforeExecution":("Execution started", "running"),
+        "AfterExecution": ("Execution complete", "ok"),
+        "ExecutionFailed":("Execution failed", "err"),
+        "BeforeVerification":("Verification started", "running"),
+        "AfterVerification": ("Verification complete", "ok"),
+        "BeforeTransformation":("Transformation started", "running"),
+        "AfterTransformation": ("Transformation complete", "ok"),
+        "RetryStarted":   ("Retrying...", "running"),
+        "RollbackStarted":("Rollback started", "running"),
+        "RollbackCompleted":("Rollback complete", "ok"),
+        "RecoverySucceeded":("Recovery complete", "ok"),
+        "RecoveryFailed": ("Recovery failed", "err"),
+    }
+
+    def _human_event(self, ctx) -> str:
+        label, _ = self._EVENT_LABELS.get(ctx.event_name, (ctx.event_name, "info"))
+        return label
+
+    def _status_of(self, ctx) -> str:
+        _, status = self._EVENT_LABELS.get(ctx.event_name, ("", "info"))
+        return status
+
     def on_bus_message(self, message: BusMessage):
         ctx = message.event_context
         payload = ctx.payload or {}
         
+        if ctx.event_name == "TokenUsage":
+            p = payload.get("prompt_tokens", 0) or 0
+            c = payload.get("completion_tokens", 0) or 0
+            self.status_panel.update_tokens(p, c)
+            return
+
+        if ctx.event_name in ("BeforePlanning", "AfterPlanning", "PlanningFailed",
+                              "BeforePatch", "AfterPatch", "PatchFailed",
+                              "BeforeExecution", "AfterExecution", "ExecutionFailed",
+                              "BeforeVerification", "AfterVerification",
+                              "BeforeTransformation", "AfterTransformation",
+                              "RetryStarted", "RollbackStarted", "RollbackCompleted",
+                              "RecoverySucceeded", "RecoveryFailed"):
+            self.status_panel.add_process(self._human_event(ctx), self._status_of(ctx))
+            return
+
         if ctx.event_name == "ToolCalled":
             tool_name = payload.get("tool_name", "unknown")
             status = payload.get("status", "running")
-            self.tool_panel.log_tool(tool_name, status)
+            self.status_panel.log_tool(tool_name, status)
+            return
             
-        elif ctx.event_name == "BeforeApproval":
+        if ctx.event_name in ("AfterPlanning", "BeforeApproval"):
+            plan = payload.get("plan")
+            work_items = (getattr(plan, "work_items", [])
+                          if not isinstance(plan, dict)
+                          else plan.get("work_items", []))
+            if work_items:
+                self.status_panel.set_todos(work_items)
+
+        if ctx.event_name == "BeforeApproval":
             # Push ApprovalModal
             def handle_modal_result(result):
                 if result:
@@ -242,14 +307,6 @@ class NexaApp(App):
                         self.print_to_chat(f"\n[Nexa] Revision Requested: {comment}\n")
                         
             self.push_screen(ApprovalModal(ctx), handle_modal_result)
-            
-    def action_toggle_tools(self) -> None:
-        """Toggle ToolPanel with F key"""
-        self.tool_panel.is_open = not self.tool_panel.is_open
-        if self.tool_panel.is_open:
-            self.tool_panel.add_class("-open")
-        else:
-            self.tool_panel.remove_class("-open")
             
     def action_palette(self) -> None:
         """Show Command Palette with Ctrl+K"""
