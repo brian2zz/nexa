@@ -247,7 +247,7 @@ class NexaApp(App):
             self.status_panel.update_tokens(p, c)
             return
 
-        if ctx.event_name in ("BeforePlanning", "AfterPlanning", "PlanningFailed",
+        if ctx.event_name in ("BeforePlanning", "PlanningFailed",
                               "BeforePatch", "AfterPatch", "PatchFailed",
                               "BeforeExecution", "AfterExecution", "ExecutionFailed",
                               "BeforeVerification", "AfterVerification",
@@ -257,19 +257,53 @@ class NexaApp(App):
             self.status_panel.add_process(self._human_event(ctx), self._status_of(ctx))
             return
 
+        if ctx.event_name == "AgentLoopIteration":
+            iter_num = payload.get("iteration", 0)
+            max_iter = payload.get("max_iterations", 15)
+            self.status_panel.add_process(f"Agent Loop [{iter_num}/{max_iter}]", "running")
+            return
+            
         if ctx.event_name == "ToolCalled":
             tool_name = payload.get("tool_name", "unknown")
             status = payload.get("status", "running")
             self.status_panel.log_tool(tool_name, status)
             return
+
+        if ctx.event_name == "AgentTasksUpdated":
+            tasks = payload.get("tasks", [])
+            self.status_panel.set_agent_tasks(tasks)
+            return
+
             
         if ctx.event_name in ("AfterPlanning", "BeforeApproval"):
+            if ctx.event_name == "AfterPlanning":
+                self.status_panel.add_process("Planning complete", "ok")
             plan = payload.get("plan")
             work_items = (getattr(plan, "work_items", [])
                           if not isinstance(plan, dict)
                           else plan.get("work_items", []))
             if work_items:
                 self.status_panel.set_todos(work_items)
+
+        if ctx.event_name == "ClarificationRequested":
+            questions = payload.get("questions", [])
+            from nexa.ui.screens.clarification import ClarificationModal
+            
+            def handle_clarification_result(answers):
+                from nexa.core.events.bus import EventContext
+                from nexa.core.models.enums import EventPriority
+                import datetime
+                self.runtime.bus.publish_async(EventContext(
+                    event_name="ClarificationAnswered",
+                    timestamp=datetime.datetime.now().isoformat(),
+                    source="TUI",
+                    priority=EventPriority.HIGH,
+                    session_id=ctx.session_id,
+                    payload={"answers": answers or {}}
+                ))
+                
+            self.push_screen(ClarificationModal(questions), handle_clarification_result)
+            return
 
         if ctx.event_name == "BeforeApproval":
             # Push ApprovalModal

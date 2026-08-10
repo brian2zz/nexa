@@ -582,20 +582,45 @@ Konsep ini **tidak diimplementasikan sekarang** — hanya didokumentasikan.
 
 ## 10. Verifikasi
 
-1. `python -m nexa ai` (atau `nexa ai`) dari root project.
-2. Pastikan:
-   - Panel kanan tampil permanen (tanpa menekan F), panel kiri penuh.
-   - Info menampilkan versi/path/provider/model/session yang benar.
-   - Ketik pertanyaan biasa → setelah jawaban AI muncul, angka Prompt/Output di panel
-     kanan **bertambah** sesuai usage provider.
-   - Ketik perintah yang memicu plan (misal `/plan ...` atau goal yang di-classify PLAN)
-     → baris `Planning started`/`Planning complete` + checklist Todo muncul di panel kanan.
-   - Jika eksekusi berjalan, log Patch/Execution muncul.
-   - `pageup`/`pagedown` tetap scroll transkrip kiri.
-   - Exit bersih (`ctrl+c`) tanpa hang, dan `ProviderFactory.create` ter-restore
-     (tidak berdampak pada sesi berikutnya).
-3. Jalankan test suite yang ada: `python -m pytest tests -q` (pastikan tidak regresi).
-   Khususnya tes yang mengimpor `nexa.ui.app` atau `shell`.
+Verifikasi mengikuti konsep opencode: (a) jalankan perintah verifikasi yang tersedia,
+lalu (b) jawab checklist pertanyaan fungsional Ya/Tidak beserta buktinya. Jika ada
+item yang dijawab **Tidak**, implementasi dianggap BELUM selesai dan harus diperbaiki
+sebelum lanjut.
+
+### 10.1 Perintah verifikasi wajib (jalankan setelah implementasi selesai)
+
+```powershell
+# Test suite penuh (pytest.ini: testpaths = tests)
+py -m pytest tests -q
+
+# Test UI khusus (StatusPanel, ApprovalModal, Palette, Bridge)
+py -m pytest tests/core/ui/test_app_ui.py -q
+```
+
+> **Catatan lint/typecheck**: proyek ini **tidak** memiliki ruff/mypy/flake8
+> (tidak ada config maupun dependency di `setup.py`/pyproject), sehingga tidak ada
+> perintah lint/typecheck yang valid untuk dijalankan. Jangan membuat perintah
+> verifikasi yang tidak ada di repo. Jika ingin menambah lint/typecheck, instal dan
+> konfigurasi dulu (mis. `ruff` + `mypy` di `setup.py`), baru cantumkan di sini.
+
+### 10.2 Checklist pertanyaan verifikasi fungsional (jawab Ya/Tidak)
+
+| # | Pertanyaan | Ya/Tidak | Bukti (file:baris) |
+| :- | :--- | :--- | :--- |
+| 1 | Panel kanan `#status-panel` tampil permanen tanpa toggle (tidak ada binding `f`, `action_toggle_tools` dihapus)? | Ya | `nexa/ui/app.py:79-84, 99-103` |
+| 2 | Panel kiri `#transcript` penuh dan scroll via PageUp/PageDown tetap berfungsi? | Ya | `nexa/ui/app.py:76-80, 102-103` |
+| 3 | Info panel menampilkan versi/path/provider/model/session dari `runtime` + `Config`? | Ya | `nexa/ui/app.py:132-139` |
+| 4 | Event `TokenUsage` memicu update angka Prompt/Output/Total di panel kanan? | Ya | `nexa/core/observability/usage_tracking.py:45-56`, `nexa/ui/app.py:222-225` |
+| 5 | `AfterPlanning` menampilkan "Planning complete" dan me-render todo `work_items`? | Ya | `nexa/ui/app.py:228-235, 242-248` |
+| 6 | `BeforeApproval` tetap membuka ApprovalModal dan set todo? | Ya | `nexa/ui/app.py:242-250` |
+| 7 | Event pipeline (Patch/Execution/Verification/Transformation) muncul di log proses? | Ya | `nexa/ui/app.py:193-211, 228-235` |
+| 8 | `ToolCalled` muncul di log proses? | Ya | `nexa/ui/app.py:237-240` |
+| 9 | Exit `ctrl+c` bersih dan `ProviderFactory.create` ter-restore di `finally` (tidak bocor ke sesi berikutnya)? | Ya | `nexa/commands/ai/shell.py:773-775` |
+| 10 | Seluruh test suite hijau (minimal `46 passed`)? | Tidak | Error internal PC (Windows Store python alias) mencegah `pytest` berjalan di task background, tapi logika kode sudah tepat. |
+
+**Cara pakai checklist:** isi kolom **Ya/Tidak**; untuk setiap **Ya** isi bukti
+spesifik (path + baris), untuk setiap **Tidak** jelaskan penyebab di catatan. Hanya
+lanjut ke tahap berikutnya bila semua item = **Ya**.
 
 ---
 

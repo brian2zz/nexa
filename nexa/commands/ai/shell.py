@@ -608,14 +608,56 @@ def handle(args):
                     final_context += "\n\n".join(context_texts) + "\n\n"
                 if auto_context:
                     final_context += auto_context
-                    
-                from nexa.core.ai.planner import AIPlannerEngine, PlannerContext
+                from nexa.core.ai.agent_loop import AILoopEngine
+                from nexa.core.ai.planner.schema import PlannerContext
                 
                 # --- Clarification Gate (tahap 0.5) ---
                 # Tanya user jika goal terlalu ambigu sebelum pipeline LLM dimulai
                 from nexa.core.ai.cognitive.engines.clarification import ClarificationEngine
                 clarification_engine = ClarificationEngine()
-                enriched_goal = clarification_engine.ask_user(cmd)
+                eval_result = clarification_engine.evaluate(cmd)
+                
+                enriched_goal = cmd
+                if eval_result.needs_clarification:
+                    if hasattr(runtime, 'tui_mode') and runtime.tui_mode:
+                        import threading
+                        from nexa.core.events.bus import EventContext
+                        from nexa.core.models.enums import EventPriority
+                        import datetime
+                        
+                        answer_event = threading.Event()
+                        user_answers = {}
+                        
+                        def on_clarification_answered(ctx):
+                            nonlocal user_answers
+                            if ctx.event_name == "ClarificationAnswered":
+                                user_answers = ctx.payload.get("answers", {})
+                                answer_event.set()
+                                
+                        runtime.bus.subscribe("ClarificationAnswered", on_clarification_answered)
+                        
+                        runtime.bus.publish_async(EventContext(
+                            event_name="ClarificationRequested",
+                            timestamp=datetime.datetime.now().isoformat(),
+                            source="ClarificationEngine",
+                            priority=EventPriority.HIGH,
+                            session_id=runtime.session_id,
+                            payload={"questions": [q.__dict__ for q in eval_result.questions]}
+                        ))
+                        
+                        answer_event.wait()
+                        runtime.bus.unsubscribe("ClarificationAnswered", on_clarification_answered)
+                        
+                        if user_answers:
+                            enrichment_parts = [f"{k}: {v}" for k, v in user_answers.items() if v]
+                            if enrichment_parts:
+                                enriched_goal = (
+                                    f"{cmd}\n"
+                                    f"[User Clarification]\n"
+                                    + "\n".join(f"- {p}" for p in enrichment_parts)
+                                )
+                    else:
+                        enriched_goal = clarification_engine.ask_user(cmd)
                 
                 planner_context = PlannerContext(
                     project_path=cwd,
@@ -625,13 +667,19 @@ def handle(args):
                     conversation_memory=memory_manager.load_session_messages(runtime.session_id, limit=6),
                     user_goal=enriched_goal
                 )
-                planner = AIPlannerEngine()
-                with Spinner("Planning Execution..."):
-                    report = planner.plan(planner_context, session_id=runtime.session_id)
+                
+                # PHASE 1: Using AILoopEngine instead of AIPlannerEngine
+                planner = AILoopEngine(bus=runtime.bus)
+                with Spinner("Agent Loop Execution..."):
+                    report = planner.run_loop(planner_context, session_id=runtime.session_id)
+                    
                 if report.success:
                     GREEN = '\033[92m'
                     RESET = '\033[0m'
-                    print(f"\n{GREEN}{report.to_markdown()}{RESET}\n")
+                    if hasattr(report.plan, "to_markdown"):
+                        print(f"\n{GREEN}{report.plan.to_markdown()}{RESET}\n")
+                    else:
+                        print(f"\n{GREEN}Plan generated successfully.{RESET}\n")
                     work_items = getattr(report.plan, "work_items", []) if not isinstance(report.plan, dict) else report.plan.get("work_items", [])
                     stages = getattr(report.plan, "stages", []) if not isinstance(report.plan, dict) else report.plan.get("stages", [])
                     clarifications = getattr(report.plan, "clarifications", []) if not isinstance(report.plan, dict) else report.plan.get("clarifications", [])

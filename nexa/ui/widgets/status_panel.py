@@ -51,7 +51,7 @@ class StatusPanel(VerticalScroll):
         yield Static("📋 Todo", classes="status-section")
         yield VerticalScroll(id="status-todo-list", classes="status-info")
         yield Static("⚙ Proses", classes="status-section")
-        yield RichLog(id="status-process-log", wrap=True, highlight=True)
+        yield RichLog(id="status-process-log", wrap=True, highlight=True, max_lines=15)
 
     def set_info(self, *, version: str, project_path: str,
                  provider: str, model: str, session_id):
@@ -96,6 +96,19 @@ class StatusPanel(VerticalScroll):
             if files:
                 label += f"  ( {files} )"
             container.mount(Static(label, classes="status-todo-pending", id=f"todo-{i}"))
+
+    def set_agent_tasks(self, tasks):
+        """Render checklist todo dari Agent TaskTool."""
+        container = self.query_one("#status-todo-list", VerticalScroll)
+        container.remove_children()
+        for t in tasks:
+            tid = t.get("id", "?")
+            title = t.get("title", "")
+            status = t.get("status", "pending")
+            icon = "☑" if status == "done" else "☐"
+            css_class = "status-todo-done" if status == "done" else "status-todo-pending"
+            label = f"{icon} [{tid}] {title}"
+            container.mount(Static(label, classes=css_class, id=f"todo-agent-{tid}"))
 
     def add_process(self, text: str, status: str = "info"):
         """Tulis satu baris ke log proses."""

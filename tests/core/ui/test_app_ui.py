@@ -5,6 +5,7 @@ from nexa.core.models.events import EventContext
 from nexa.ui.app import NexaApp
 from nexa.ui.screens.approval import ApprovalModal
 from nexa.ui.screens.palette import CommandPaletteModal
+from nexa.ui.screens.clarification import ClarificationModal
 
 
 class FakeRuntime:
@@ -45,7 +46,7 @@ async def test_tui_mounts_and_submits_command():
         await pilot.pause()
         assert app.query_one("#prompt-input") is not None
         assert app.query_one("#transcript") is not None
-        assert app.query_one("#tool-panel") is not None
+        assert app.query_one("#status-panel") is not None
         # Submit a command through the input
         await pilot.press("h", "i", "enter")
         await pilot.pause()
@@ -63,13 +64,11 @@ async def test_tool_called_updates_panel():
     app = make_app()
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
-        # Open panel first so RichLog size is known and writes are rendered
-        app.action_toggle_tools()
-        await pilot.pause()
+        # Status panel is always visible (no toggle needed)
         app.runtime.bus.publish(event("ToolCalled", {"tool_name": "grep_search", "status": "running"}))
         await pilot.pause()
         await pilot.pause()
-        log = app.query_one("#tool-panel-log")
+        log = app.query_one("#status-process-log")
         text = "".join(strip.text for strip in log.lines)
         assert "grep_search" in text
 
@@ -118,14 +117,106 @@ async def test_palette_opens_and_executes():
 
 
 @pytest.mark.asyncio
-async def test_toggle_tools_panel():
+async def test_status_panel_always_visible():
     app = make_app()
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
-        assert not app.tool_panel.is_open
-        app.action_toggle_tools()
+        assert not app.status_panel.display is False
+        assert app.query_one("#status-panel") is not None
+        # Info block should be populated from runtime/Config
+        info = app.query_one("#status-info")
+        assert "Version" in str(info.render())
+
+
+@pytest.mark.asyncio
+async def test_clarification_requested_pushes_modal():
+    app = make_app()
+    async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
-        assert app.tool_panel.is_open
-        app.action_toggle_tools()
+        app.runtime.bus.publish(event("ClarificationRequested", {"questions": [
+            {"key": "file_path", "question": "File mana?", "hint": "modules/x"},
+        ]}))
         await pilot.pause()
-        assert not app.tool_panel.is_open
+        assert any(isinstance(s, ClarificationModal) for s in app.screen_stack)
+
+
+@pytest.mark.asyncio
+async def test_clarification_modal_renders_questions():
+    app = make_app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app.runtime.bus.publish(event("ClarificationRequested", {"questions": [
+            {"key": "file_path", "question": "File mana?", "hint": "modules/x"},
+            {"key": "style", "question": "Gaya?", "hint": ""},
+        ]}))
+        await pilot.pause()
+        modal = next(s for s in app.screen_stack if isinstance(s, ClarificationModal))
+        assert modal.query_one("#input-file_path") is not None
+        assert modal.query_one("#input-style") is not None
+
+
+@pytest.mark.asyncio
+async def test_clarification_submit_publishes_answered():
+    app = make_app()
+    answered = []
+    app.runtime.bus.subscribe(
+        "ClarificationAnswered",
+        lambda ctx: answered.append(ctx.payload.get("answers")),
+    )
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app.runtime.bus.publish(event("ClarificationRequested", {"questions": [
+            {"key": "file_path", "question": "File mana?", "hint": "modules/x"},
+        ]}))
+        await pilot.pause()
+        from textual.widgets import Input
+        modal = next(s for s in app.screen_stack if isinstance(s, ClarificationModal))
+        modal.query_one("#input-file_path", Input).value = "modules/x"
+        modal.query_one("#btn-submit").press()
+        await pilot.pause()
+        await pilot.pause()
+        assert answered and answered[-1] == {"file_path": "modules/x"}
+
+
+@pytest.mark.asyncio
+async def test_clarification_empty_submit_publishes_empty_and_pops():
+    app = make_app()
+    answered = []
+    app.runtime.bus.subscribe(
+        "ClarificationAnswered",
+        lambda ctx: answered.append(ctx.payload.get("answers")),
+    )
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app.runtime.bus.publish(event("ClarificationRequested", {"questions": [
+            {"key": "file_path", "question": "File mana?", "hint": "modules/x"},
+        ]}))
+        await pilot.pause()
+        modal = next(s for s in app.screen_stack if isinstance(s, ClarificationModal))
+        modal.query_one("#btn-submit").press()
+        await pilot.pause()
+        await pilot.pause()
+        assert answered and answered[-1] == {}
+        assert not any(isinstance(s, ClarificationModal) for s in app.screen_stack)
+
+
+@pytest.mark.asyncio
+async def test_clarification_skip_publishes_empty_and_pops():
+    app = make_app()
+    answered = []
+    app.runtime.bus.subscribe(
+        "ClarificationAnswered",
+        lambda ctx: answered.append(ctx.payload.get("answers")),
+    )
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app.runtime.bus.publish(event("ClarificationRequested", {"questions": [
+            {"key": "file_path", "question": "File mana?", "hint": "modules/x"},
+        ]}))
+        await pilot.pause()
+        modal = next(s for s in app.screen_stack if isinstance(s, ClarificationModal))
+        modal.query_one("#btn-skip").press()
+        await pilot.pause()
+        await pilot.pause()
+        assert answered and answered[-1] == {}
+        assert not any(isinstance(s, ClarificationModal) for s in app.screen_stack)
