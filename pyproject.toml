@@ -26,3 +26,7 @@ dependencies = [
 
 [project.scripts]
 nexa = "nexa.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["nexa*"]

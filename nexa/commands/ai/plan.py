@@ -28,8 +28,11 @@ def handle(args):
     
     engine = AILoopEngine()
     
+    import time
+    session_id = int(time.time())
+    
     print("[*] Generating Plan...")
-    report = engine.run_loop(planner_context, session_id=0)
+    report = engine.run_loop(planner_context, session_id=session_id)
     
     if report.success:
         GREEN = '\033[92m'
@@ -39,3 +42,4 @@ def handle(args):
         RED = '\033[91m'
         RESET = '\033[0m'
         print(f"\n{RED}Plan generation failed: {report.error_message}{RESET}\n")
+        sys.exit(1)
