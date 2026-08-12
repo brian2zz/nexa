@@ -30,3 +30,6 @@ nexa = "nexa.cli:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["nexa*"]
+
+[tool.setuptools]
+include-package-data = true

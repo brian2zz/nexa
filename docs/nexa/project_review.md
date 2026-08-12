@@ -255,13 +255,54 @@ test_transformation.py, test_validator.py   (test legacy di-root)
 - [x] Perbaiki deprecation sqlite (P-5)
 - [x] CI + LICENSE + CHANGELOG + CONTRIBUTING (P-6)
 - [x] Rapikan encoding docs (P-7)
-- [ ] `git rm -r --cached` untuk `.pyc` (S-1)
-- [ ] Tambah `*.db` ke `.gitignore` (S-2)
-- [ ] Commit seluruh perubahan (S-3)
-- [ ] Exit code `nexa plan` = 1 saat gagal (S-4)
-- [ ] `session_id` dari session nyata, bukan `0` (S-5)
-- [ ] Konsolidasi setup.py → pyproject.toml (S-6)
+- [x] `git rm -r --cached` untuk `.pyc` (S-1) — ✅ 0 file ter-track
+- [ ] Tambah `*.db` ke `.gitignore` (S-2) — ⚠️ aturan ada, file lama masih ter-track
+- [x] Commit seluruh perubahan (S-3) — ✅ 3 commit final
+- [x] Exit code `nexa plan` = 1 saat gagal (S-4) — ✅ `sys.exit(1)`
+- [x] `session_id` dari session nyata, bukan `0` (S-5) — ✅ `int(time.time())`
+- [x] Konsolidasi setup.py → pyproject.toml (S-6) — ✅ setup.py dihapus
 - [ ] Verifikasi `pip install` di env bersih (Fase D)
+
+---
+
+## 7. Verifikasi Sesi 2 — Status Fondasi (12 Agustus 2026, prioritas: *fundamental base*)
+
+> Hasil pengecekan ulang kedua terhadap seluruh rekomendasi, **setelah** 3 commit final:
+> `35ad58d` (restrukturisasi agent + command palette + CI) · `93942b4` (hierarchical memory + dokumen) · `6a5ded8` (bereskan sisa S-1 s/d S-6).
+
+### 7.1 Status Final Rekomendasi
+
+| Rekomendasi | Status Final | Bukti Verifikasi |
+| :--- | :--- | :--- |
+| P-1 `nexa plan` | ✅ **Selesai** | `ImportError` hilang; error ditangani; `sys.exit(1)` saat gagal (`plan.py:45`) |
+| P-2 Packaging | ✅ **Selesai** | `pyproject.toml` PEP 621 + PyYAML + `>=3.11`; `MANIFEST.in`; setup.py dihapus |
+| P-3 Hygiene repo | ✅ **Selesai (utk baseline)** | 27 file di-`git rm`; 54 `.pyc` dilepas; sisa: lihat S-2 Residual |
+| P-4 Kode mati/duplikat | ✅ **Selesai** | `analyzer.py`, `context_builder.py`, `vue.py`, `sync.py` dihapus |
+| P-5 Risiko runtime | ✅ **Selesai** | deprecation sqlite hilang (0 warning); `>=3.11` |
+| P-6 Infrastruktur | ✅ **Selesai** | LICENSE (MIT), CHANGELOG, CONTRIBUTING, `.github/workflows/ci.yml` |
+| P-7 Mojibake docs | ✅ **Selesai** | emoji valid, encoding bersih |
+
+### 7.2 Fondasi yang Sudah Solid (Baseline Hijau)
+
+- [x] **Test suite stabil**: 51/51 lulus · imports OK · compileall exit 0
+- [x] **Working tree bersih**: seluruh perbaikan ter-commit (tidak ada WIP mengambang)
+- [x] **Tidak ada artefak: `.pyc`, `egg-info`, skrip scratch, test legacy`** di git
+- [x] **Metadata packaging tunggal** (pyproject) + template terdaftar di `MANIFEST.in`
+- [x] **Perintah utama jalan**: `--version`, `scan`, `create` (usage), `plan` (tidak crash)
+- [x] **Keamanan API key**: env var + `getpass`, tidak ada secret di kode
+- [x] **Dokumentasi & lisensi**: LICENSE / CHANGELOG / CONTRIBUTING / CI lengkap
+
+> ✅ **Kesimpulan baseline:** fondasi fundamental proyek sudah **layak untuk lanjut ke tahap berikutnya** (pengembangan fitur lanjutan). Hanya tersisa 2 catatan kecil (S-2 Residual & S-7) yang tidak menghambat progress.
+
+### 7.3 Tersisa Sebelum Tahap Berikutnya (2 catatan kecil)
+
+| No | Temuan | Detail | Usulan Tindakan |
+| :--- | :--- | :--- | :--- |
+| S-2 Residual | **`.nexa_cache.db` masih ter-track git** | File cache runtime seharusnya tidak masuk repo. Awalnya sudah di-`git rm` (commit `35ad58d`), tapi **ikut ter-commit lagi** oleh `93942b4` (hasil `nexa scan`). Aturan `*.db` di `.gitignore:54` sudah benar untuk file baru. | `git rm --cached .nexa_cache.db` + commit (file tetap ada di disk). |
+| S-7 | **Template berisiko tidak ikut di wheel** | `pyproject.toml` belum punya `[tool.setuptools] include-package-data` / `package-data`. `MANIFEST.in` menjamin ikut di **sdist**, tapi folder `nexa/templates/` (bukan package, tanpa `__init__.py`) belum tentu termasuk di **wheel** → `pip install` dari wheel bisa kehilangan template `.tpl` & `php_skeleton`. CI aman karena `pip install -e .` pakai folder sumber. | Verifikasi build wheel di env bersih; bila perlu tambah: `[tool.setuptools] include-package-data = true` + `package-data` untuk `nexa`. |
+
+### 7.4 Catatan Kecil
+- `planner_debug.log` tertinggal di disk (di-ignore oleh `*.log`, tidak ter-track) — aman dikosongkan/dihapus lokal.
 
 ---
 
@@ -275,6 +316,11 @@ test_transformation.py, test_validator.py   (test legacy di-root)
 # Re-verifikasi (12-08-2026)
 # python -m pytest tests -q
 =========================== 51 passed, 0 warnings in 11.55s ===========================
+
+# Re-verifikasi sesi 2 (12-08-2026, setelah commit final)
+# python -m pytest tests -q
+=========================== 51 passed in 11.61s ===========================
+import nexa; import nexa.cli; import nexa.commands.ai.plan; import nexa.ui.app  →  imports OK
 
 # import smoke test
 import nexa; import nexa.cli; import nexa.commands.ai.shell  →  imports OK
@@ -294,8 +340,8 @@ nexa plan ...     →  ✅ ImportError hilang (ditangani rapi; gagal hanya jika 
 | File | Peran |
 | :--- | :--- |
 | `nexa/cli.py` | Dispatcher perintah utama |
-| `pyproject.toml` | Metadata & dep (PEP 621) — ✅ terisi |
-| `setup.py` | Packaging legacy (konsisten, bisa dikonsolidasi) |
+| `pyproject.toml` | Metadata & dep (PEP 621) — ✅ terisi, satu-satunya sumber |
+| ~~`setup.py`~~ | Packaging legacy — ✅ dihapus |
 | `nexa/commands/ai/plan.py` | Command `plan` — ✅ diperbaiki |
 | ~~`nexa/core/ai/analyzer.py`~~ | File legacy — ✅ dihapus |
 | `nexa/core/ai/memory/hierarchical.py` | Deprecation sqlite — ✅ diperbaiki |
