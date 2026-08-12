@@ -13,7 +13,7 @@ from nexa.ui.widgets.status_panel import StatusPanel
 from nexa import __version__ as NEXA_VERSION
 from nexa.config import Config
 from nexa.ui.screens.approval import ApprovalModal
-from nexa.ui.screens.palette import CommandPaletteModal, GenericSelectionModal
+from nexa.ui.screens.palette import CommandPaletteModal, GenericSelectionModal, InputModal
 from nexa.ui.widgets.chat_message import ChatMessage
 
 class RedirectedStdout:
@@ -430,6 +430,17 @@ class NexaApp(App):
                 ]
                 def _handle_provider(prov):
                     if prov:
+                        if prov in ["deepseek", "groq", "gemini"]:
+                            api_key = Config.get(f"{prov}.api_key", "")
+                            if not api_key:
+                                def _handle_key(key):
+                                    if key:
+                                        Config.set(f"{prov}.api_key", key)
+                                    self.status_bar.status_text = "Processing..."
+                                    self.run_command(f"{cmd} {prov}")
+                                self.push_screen(InputModal(f"Enter API Key for {prov}:", password=True), _handle_key)
+                                return
+                        
                         self.status_bar.status_text = "Processing..."
                         self.run_command(f"{cmd} {prov}")
                 self.push_screen(GenericSelectionModal("Select AI Provider", opts), _handle_provider)

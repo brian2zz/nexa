@@ -35,7 +35,6 @@ class CommandPaletteModal(ModalScreen[str]):
             Option("/clear - Clear current chat session", id="/clear"),
             Option("/select-provider - Switch AI Provider", id="/select-provider"),
             Option("/set-model - Set active model for provider", id="/set-model"),
-            Option("/set-api-key - Set API Key for provider", id="/set-api-key"),
             Option("/facts - Show project facts", id="/facts"),
             Option("/pins - Show pinned memory", id="/pins"),
             Option("/pin - Pin last AI response", id="/pin"),
@@ -81,4 +80,44 @@ class GenericSelectionModal(ModalScreen[str]):
         val = event.option.id
         if val:
             self.dismiss(val)
+
+class InputModal(ModalScreen[str]):
+    """Modal screen for text input (e.g. API keys)."""
+    
+    CSS = """
+    InputModal {
+        align: center middle;
+        background: $background 80%;
+    }
+    
+    #input-container {
+        width: 50%;
+        height: auto;
+        padding: 1 2;
+        border: thick $primary;
+        background: $surface;
+    }
+    """
+    
+    def __init__(self, title: str, password: bool = False, **kwargs):
+        super().__init__(**kwargs)
+        self.title_text = title
+        self.is_password = password
+        
+    def compose(self) -> ComposeResult:
+        from textual.containers import Vertical
+        from textual.widgets import Label, Input
+        with Vertical(id="input-container"):
+            yield Label(self.title_text)
+            yield Input(password=self.is_password, id="modal-input")
+            
+    def on_mount(self):
+        self.query_one("#modal-input").focus()
+        
+    def on_input_submitted(self, event) -> None:
+        val = event.value.strip()
+        if val:
+            self.dismiss(val)
+        else:
+            self.dismiss("")
 

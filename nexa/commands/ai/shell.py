@@ -7,7 +7,6 @@ def print_help():
     print("\n=== Nexa AI Interactive Shell - Built-in Commands ===")
     print("  /select-provider <name>  : Switch AI Provider (ollama, deepseek, mock)")
     print("  /set-model <name>        : Set the active model for the current provider")
-    print("  /set-api-key             : Securely enter API Key for current provider")
     print("  /status                  : Show current configuration")
     print("  /history                 : Show chat session history (alias for /session list)")
     print("  /load <id>               : Load a past chat session (alias for /session enter)")
@@ -70,6 +69,11 @@ def check_provider_readiness(provider_name):
             set_api_key("groq")
 
 def set_api_key(provider_name):
+    import sys
+    if hasattr(sys.stdout, "_app"): 
+        print(f"[!] TUI Mode: Please use the Command Palette (Ctrl+K) -> /select-provider to set your API Key for {provider_name}.")
+        return
+        
     print(f"Please enter your API Key for {provider_name} (Input will be hidden):")
     api_key = getpass.getpass("API Key: ").strip()
     if api_key:
@@ -232,6 +236,25 @@ def handle(args):
             else:
                 provider_name = parts[1].lower()
                 
+            if provider_name in ["deepseek", "groq", "gemini"]:
+                api_key = Config.get(f"{provider_name}.api_key", "")
+                if not api_key:
+                    import sys
+                    if not hasattr(sys.stdout, "_app"):
+                        try:
+                            from prompt_toolkit.shortcuts import input_dialog
+                            new_key = input_dialog(
+                                title=f"API Key Required",
+                                text=f"Please enter your API Key for {provider_name}:",
+                                password=True
+                            ).run()
+                            if new_key:
+                                Config.set(f"{provider_name}.api_key", new_key)
+                            else:
+                                print("[!] API Key setup cancelled.")
+                        except Exception:
+                            set_api_key(provider_name)
+                            
             Config.set("provider", provider_name)
             print(f"[*] Provider switched to: {provider_name}")
             check_provider_readiness(provider_name)
