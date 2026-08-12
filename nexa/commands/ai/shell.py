@@ -225,7 +225,8 @@ def handle(args):
                     ).run()
                     if not provider_name:
                         return True
-                except Exception:
+                except Exception as e:
+                    print(f"Error: {e}")
                     print("Usage: /select-provider <name> (e.g. ollama, deepseek)")
                     return True
             else:

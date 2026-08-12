@@ -231,16 +231,24 @@ class NexaApp(App):
         if not cmd:
             return
             
+        event.input.value = ""
+        
+        # Open command palette directly if user just types "/"
+        if cmd == "/":
+            self.action_palette()
+            return
+            
         needs_args_or_modal = ["/select-provider", "/set-model", "/set-api-key", "/load", "/plan", "/facts set", "/facts remove", "/unpin", "/session enter", "/session delete"]
         
         # If user types exactly the command without args, trigger the palette handler (which shows modal or prepopulates input)
         if cmd in needs_args_or_modal:
-            event.input.value = ""
             self.handle_palette_result(cmd)
             return
             
-        event.input.value = ""
-        self.print_to_chat(cmd, role="user")
+        # Do not echo slash commands to the chat transcript, to keep it clean like Opencode
+        if not cmd.startswith("/"):
+            self.print_to_chat(cmd, role="user")
+            
         self.status_bar.status_text = "Processing..."
         self.run_command(cmd)
         
@@ -422,7 +430,6 @@ class NexaApp(App):
                 ]
                 def _handle_provider(prov):
                     if prov:
-                        self.print_to_chat(f"{cmd} {prov}", role="user")
                         self.status_bar.status_text = "Processing..."
                         self.run_command(f"{cmd} {prov}")
                 self.push_screen(GenericSelectionModal("Select AI Provider", opts), _handle_provider)
@@ -443,7 +450,6 @@ class NexaApp(App):
 
                 def _handle_model(mod):
                     if mod:
-                        self.print_to_chat(f"{cmd} {mod}", role="user")
                         self.status_bar.status_text = "Processing..."
                         self.run_command(f"{cmd} {mod}")
                 self.push_screen(GenericSelectionModal(f"Select Model for {provider}", opts), _handle_model)
@@ -455,7 +461,6 @@ class NexaApp(App):
                 inp.value = cmd + " "
                 inp.focus()
             else:
-                self.print_to_chat(cmd, role="user")
                 self.status_bar.status_text = "Processing..."
                 self.run_command(cmd)
 
