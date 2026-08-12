@@ -95,7 +95,7 @@ class StatusPanel(VerticalScroll):
             label = f"☐ [{i}] {title}"
             if files:
                 label += f"  ( {files} )"
-            container.mount(Static(label, classes="status-todo-pending", id=f"todo-{i}"))
+            container.mount(Static(label, classes="status-todo-pending"))
 
     def set_agent_tasks(self, tasks):
         """Render checklist todo dari Agent TaskTool."""
@@ -108,7 +108,7 @@ class StatusPanel(VerticalScroll):
             icon = "☑" if status == "done" else "☐"
             css_class = "status-todo-done" if status == "done" else "status-todo-pending"
             label = f"{icon} [{tid}] {title}"
-            container.mount(Static(label, classes=css_class, id=f"todo-agent-{tid}"))
+            container.mount(Static(label, classes=css_class))
 
     def add_process(self, text: str, status: str = "info"):
         """Tulis satu baris ke log proses."""
