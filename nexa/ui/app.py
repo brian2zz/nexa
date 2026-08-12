@@ -449,7 +449,7 @@ class NexaApp(App):
             if cmd == "/set-model":
                 provider = Config.get("provider", "mock")
                 if provider == "ollama":
-                    opts = [("llama3", "llama3"), ("llama3.1", "llama3.1"), ("deepseek-coder", "deepseek-coder"), ("phi3", "phi3"), ("mistral", "mistral")]
+                    opts = [("llama3.1", "llama3.1"), ("gemma:2b", "gemma:2b"), ("qwen3:14b", "qwen3:14b"), ("deepseek-coder", "deepseek-coder"), ("phi3", "phi3"), ("mistral", "mistral")]
                 elif provider == "deepseek":
                     opts = [("deepseek-chat", "deepseek-chat"), ("deepseek-coder", "deepseek-coder")]
                 elif provider == "groq":
