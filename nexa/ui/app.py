@@ -338,18 +338,18 @@ class NexaApp(App):
         if ctx.event_name == "AgentLoopIteration":
             iter_num = payload.get("iteration", 0)
             max_iter = payload.get("max_iterations", 15)
-            self.status_panel.add_process(f"Agent Loop [{iter_num}/{max_iter}]", "running")
+            self.call_from_thread(self.status_panel.add_process, f"Agent Loop [{iter_num}/{max_iter}]", "running")
             return
             
-        if ctx.event_name == "ToolCalled":
-            tool_name = payload.get("tool_name", "unknown")
-            status = payload.get("status", "running")
-            self.status_panel.log_tool(tool_name, status)
+        if ctx.event_name == "UI_Print":
+            msg = ctx.payload.get("message", "")
+            role = ctx.payload.get("role", "ai")
+            self.call_from_thread(self.print_to_chat, msg, role)
             return
 
         if ctx.event_name == "AgentTasksUpdated":
             tasks = payload.get("tasks", [])
-            self.status_panel.set_agent_tasks(tasks)
+            self.call_from_thread(self.status_panel.set_agent_tasks, tasks)
             return
 
             
@@ -361,7 +361,7 @@ class NexaApp(App):
                           if not isinstance(plan, dict)
                           else plan.get("work_items", []))
             if work_items:
-                self.status_panel.set_todos(work_items)
+                self.call_from_thread(self.status_panel.set_todos, work_items)
 
         if ctx.event_name == "ClarificationRequested":
             questions = payload.get("questions", [])
