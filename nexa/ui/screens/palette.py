@@ -48,3 +48,37 @@ class CommandPaletteModal(ModalScreen[str]):
         cmd = event.option.id
         if cmd:
             self.dismiss(cmd)
+
+class GenericSelectionModal(ModalScreen[str]):
+    """Generic modal screen to present a list of options."""
+    
+    CSS = """
+    GenericSelectionModal {
+        align: center middle;
+        background: $background 80%;
+    }
+    
+    #selection-list {
+        width: 50%;
+        height: 50%;
+        border: thick $primary;
+        background: $surface;
+    }
+    """
+    
+    def __init__(self, title: str, options: list[tuple[str, str]], **kwargs):
+        super().__init__(**kwargs)
+        self.title_text = title
+        self.options_data = options
+        
+    def compose(self) -> ComposeResult:
+        from textual.widgets import Label
+        yield Label(self.title_text, id="selection-title")
+        opts = [Option(desc, id=val) for val, desc in self.options_data]
+        yield OptionList(*opts, id="selection-list")
+        
+    def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
+        val = event.option.id
+        if val:
+            self.dismiss(val)
+

@@ -13,7 +13,7 @@ from nexa.ui.widgets.status_panel import StatusPanel
 from nexa import __version__ as NEXA_VERSION
 from nexa.config import Config
 from nexa.ui.screens.approval import ApprovalModal
-from nexa.ui.screens.palette import CommandPaletteModal
+from nexa.ui.screens.palette import CommandPaletteModal, GenericSelectionModal
 from nexa.ui.widgets.chat_message import ChatMessage
 
 class RedirectedStdout:
@@ -401,7 +401,44 @@ class NexaApp(App):
             
     def handle_palette_result(self, cmd: str) -> None:
         if cmd:
-            needs_args = ["/select-provider", "/set-model", "/set-api-key", "/load", "/plan", "/facts set", "/facts remove", "/unpin", "/session enter", "/session delete"]
+            if cmd == "/select-provider":
+                opts = [
+                    ("ollama", "Ollama (Local)"),
+                    ("deepseek", "DeepSeek (Cloud)"),
+                    ("groq", "Groq (Cloud)"),
+                    ("gemini", "Gemini (Cloud)"),
+                    ("mock", "Mock (Testing)")
+                ]
+                def _handle_provider(prov):
+                    if prov:
+                        self.print_to_chat(f"{cmd} {prov}", role="user")
+                        self.status_bar.status_text = "Processing..."
+                        self.run_command(f"{cmd} {prov}")
+                self.push_screen(GenericSelectionModal("Select AI Provider", opts), _handle_provider)
+                return
+
+            if cmd == "/set-model":
+                provider = Config.get("provider", "mock")
+                if provider == "ollama":
+                    opts = [("llama3", "llama3"), ("llama3.1", "llama3.1"), ("deepseek-coder", "deepseek-coder"), ("phi3", "phi3"), ("mistral", "mistral")]
+                elif provider == "deepseek":
+                    opts = [("deepseek-chat", "deepseek-chat"), ("deepseek-coder", "deepseek-coder")]
+                elif provider == "groq":
+                    opts = [("llama3-70b-8192", "llama3-70b-8192"), ("mixtral-8x7b-32768", "mixtral-8x7b-32768")]
+                elif provider == "gemini":
+                    opts = [("gemini-1.5-pro-latest", "gemini-1.5-pro"), ("gemini-1.5-flash-latest", "gemini-1.5-flash")]
+                else:
+                    opts = [("default", "default")]
+
+                def _handle_model(mod):
+                    if mod:
+                        self.print_to_chat(f"{cmd} {mod}", role="user")
+                        self.status_bar.status_text = "Processing..."
+                        self.run_command(f"{cmd} {mod}")
+                self.push_screen(GenericSelectionModal(f"Select Model for {provider}", opts), _handle_model)
+                return
+
+            needs_args = ["/set-api-key", "/load", "/plan", "/facts set", "/facts remove", "/unpin", "/session enter", "/session delete"]
             if cmd in needs_args:
                 inp = self.query_one("#prompt-input")
                 inp.value = cmd + " "
