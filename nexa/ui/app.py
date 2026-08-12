@@ -258,6 +258,34 @@ class NexaApp(App):
             self.handle_palette_result(cmd)
             return
             
+        # Handle UI-based API key prompting for /select-provider <provider>
+        if cmd.lower().startswith("/select-provider "):
+            parts = cmd.split()
+            if len(parts) == 2:
+                prov = parts[1].lower()
+                if prov in ["deepseek", "groq", "gemini"]:
+                    api_key = Config.get(f"{prov}.api_key", "")
+                    if not api_key:
+                        def _handle_key(key):
+                            if key:
+                                Config.set(f"{prov}.api_key", key)
+                            self.status_bar.status_text = "Processing..."
+                            self.run_command(cmd)
+                        self.push_screen(InputModal(f"Enter API Key for {prov}:", password=True), _handle_key)
+                        return
+                        
+        # Handle UI-based API key prompting for /set-api-key <provider>
+        if cmd.lower().startswith("/set-api-key "):
+            parts = cmd.split()
+            if len(parts) == 2:
+                prov = parts[1].lower()
+                def _handle_key_set(key):
+                    if key:
+                        self.status_bar.status_text = "Processing..."
+                        self.run_command(f"{parts[0]} {prov} {key}")
+                self.push_screen(InputModal(f"Enter API Key for {prov}:", password=True), _handle_key_set)
+                return
+            
         # Do not echo slash commands to the chat transcript, to keep it clean like Opencode
         if not cmd.startswith("/"):
             self.print_to_chat(cmd, role="user")
