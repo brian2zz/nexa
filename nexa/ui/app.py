@@ -2,6 +2,8 @@ import contextlib
 import threading
 import sys
 from textual.app import App, ComposeResult
+from textual.command import Provider, Hit
+from functools import partial
 from textual.containers import VerticalScroll, Horizontal
 from textual.widgets import Input, Static, Header, RichLog
 from textual import work
@@ -70,7 +72,51 @@ class StatusBar(Static):
     def render(self):
         return self.status_text
 
+class NexaCommandProvider(Provider):
+    """Provides commands for the Nexa Command Palette."""
+    
+    _nexa_commands = [
+        ("/help", "Show available commands"),
+        ("/status", "Show runtime status"),
+        ("/plan", "Generate an Execution Plan for a task"),
+        ("/commands", "Show CLI commands for this project"),
+        ("/history", "Show chat session history"),
+        ("/session list", "Show all chat sessions"),
+        ("/load", "Load a past chat session"),
+        ("/clear", "Clear current chat session"),
+        ("/select-provider", "Switch AI Provider"),
+        ("/set-model", "Set active model for provider"),
+        ("/set-api-key", "Set API Key for provider"),
+        ("/facts", "Show project facts"),
+        ("/pins", "Show pinned memory"),
+        ("/pin", "Pin last AI response"),
+        ("/clearpins", "Clear all pinned memory"),
+        ("/exit", "Quit the application"),
+    ]
+
+    async def discover(self):
+        for cmd, desc in self._nexa_commands:
+            yield Hit(
+                1.0,
+                matcher.highlight(cmd + " - " + desc) if 'matcher' in locals() else cmd + " - " + desc,
+                partial(self.app.handle_palette_result, cmd),
+                help=desc
+            )
+
+    async def search(self, query: str):
+        matcher = self.matcher(query)
+        for cmd, desc in self._nexa_commands:
+            score = matcher.match(cmd + " " + desc)
+            if score > 0:
+                yield Hit(
+                    score,
+                    matcher.highlight(cmd + " - " + desc),
+                    partial(self.app.handle_palette_result, cmd),
+                    help=desc
+                )
+
 class NexaApp(App):
+    COMMANDS = App.COMMANDS | {NexaCommandProvider}
     CSS = """
     Screen {
         layout: vertical;
@@ -324,6 +370,17 @@ class NexaApp(App):
                         ))
                         self.print_to_chat("\n[Nexa] Execution Approved. Starting transaction...\n")
                     elif action == "no":
+                        from nexa.core.events.bus import EventContext
+                        from nexa.core.models.enums import EventPriority
+                        import datetime
+                        self.runtime.bus.publish_async(EventContext(
+                            event_name="ApprovalRejected",
+                            timestamp=datetime.datetime.now().isoformat(),
+                            source="TUI",
+                            priority=EventPriority.HIGH,
+                            session_id=ctx.session_id,
+                            payload={"plan": payload.get("plan")}
+                        ))
                         self.print_to_chat("\n[Nexa] Execution Aborted by user.\n")
                     elif action == "comment":
                         comment = result.get("comment", "")
@@ -342,13 +399,18 @@ class NexaApp(App):
                         
             self.push_screen(ApprovalModal(ctx), handle_modal_result)
             
-    def action_palette(self) -> None:
-        """Show Command Palette with Ctrl+K"""
-        def handle_palette_result(cmd):
-            if cmd:
-                # Execute the command
+    def handle_palette_result(self, cmd: str) -> None:
+        if cmd:
+            needs_args = ["/select-provider", "/set-model", "/set-api-key", "/load", "/plan", "/facts set", "/facts remove", "/unpin", "/session enter", "/session delete"]
+            if cmd in needs_args:
+                inp = self.query_one("#prompt-input")
+                inp.value = cmd + " "
+                inp.focus()
+            else:
                 self.print_to_chat(cmd, role="user")
                 self.status_bar.status_text = "Processing..."
                 self.run_command(cmd)
-                
-        self.push_screen(CommandPaletteModal(), handle_palette_result)
+
+    def action_palette(self) -> None:
+        """Show Command Palette with Ctrl+K"""
+        self.push_screen(CommandPaletteModal(), self.handle_palette_result)

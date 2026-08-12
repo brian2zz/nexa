@@ -86,7 +86,7 @@ class SessionMemory:
         with self._get_conn() as conn:
             conn.execute(
                 "INSERT INTO session_events (session_id, event_type, summary, created_at) VALUES (?, ?, ?, ?)",
-                (self.session_id, event_type, summary, datetime.datetime.now())
+                (self.session_id, event_type, summary, datetime.datetime.now().isoformat())
             )
             conn.commit()
 

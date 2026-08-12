@@ -1,0 +1,6 @@
+recursive-include nexa *.tpl
+recursive-include nexa *.md
+recursive-include nexa *.json
+recursive-include nexa *.yaml
+recursive-include nexa/php_skeleton *
+include SKILL.md

@@ -4,7 +4,7 @@ from nexa.config import Config
 from nexa.core.ai.providers.factory import ProviderFactory
 
 def print_help():
-    print("\nNexa AI Interactive Shell - Commands:")
+    print("\n=== Nexa AI Interactive Shell - Built-in Commands ===")
     print("  /select-provider <name>  : Switch AI Provider (ollama, deepseek, mock)")
     print("  /set-model <name>        : Set the active model for the current provider")
     print("  /set-api-key             : Securely enter API Key for current provider")
@@ -26,7 +26,17 @@ def print_help():
     print("  /clearpins               : Clear all pinned memory")
     print("  /commands                : Show available CLI commands for this project")
     print("  /exit, /quit, exit       : Exit the shell")
-    print("  /help                    : Show this help message\n")
+    print("  /help                    : Show this help message")
+    print("\n=== Nexa Global CLI Commands (Run outside this shell) ===")
+    print("  nexa ai                  : Start this interactive AI shell")
+    print("  nexa scan                : Scan project structure and vulnerabilities")
+    print("  nexa tree                : Generate project directory tree")
+    print("  nexa analyze             : Analyze codebase architecture")
+    print("  nexa plan                : Generate a task execution plan")
+    print("  nexa explain             : Explain a specific file or code snippet")
+    print("  nexa create              : AI Scaffolding to create new projects")
+    print("  nexa ask                 : Ask a quick question to Nexa AI")
+    print("  nexa <framework>         : Framework specific commands (django/flutter/php)\n")
 
 def show_status():
     provider = Config.get("provider")
@@ -676,10 +686,8 @@ def handle(args):
                 if report.success:
                     GREEN = '\033[92m'
                     RESET = '\033[0m'
-                    if hasattr(report.plan, "to_markdown"):
-                        print(f"\n{GREEN}{report.plan.to_markdown()}{RESET}\n")
-                    else:
-                        print(f"\n{GREEN}Plan generated successfully.{RESET}\n")
+                    from nexa.core.ai.planner.formatter import PlanFormatter
+                    print(f"\n{GREEN}{PlanFormatter().to_markdown(report.plan)}{RESET}\n")
                     work_items = getattr(report.plan, "work_items", []) if not isinstance(report.plan, dict) else report.plan.get("work_items", [])
                     stages = getattr(report.plan, "stages", []) if not isinstance(report.plan, dict) else report.plan.get("stages", [])
                     clarifications = getattr(report.plan, "clarifications", []) if not isinstance(report.plan, dict) else report.plan.get("clarifications", [])

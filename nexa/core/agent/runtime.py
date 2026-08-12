@@ -59,6 +59,9 @@ class NexaAgentRuntime:
         self.bus.subscribe("BeforeApproval", self.approval_ui.handle_before_approval)
         
         def handle_approval_granted(context):
+            if context.payload.get("tool_approval", False):
+                return
+                
             import dataclasses
             plan = context.payload.get("plan", {})
             if dataclasses.is_dataclass(plan):

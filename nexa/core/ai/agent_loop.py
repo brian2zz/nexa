@@ -24,7 +24,7 @@ class AILoopEngine:
 
     def _build_system_prompt(self, context: PlannerContext) -> str:
         prompt = (
-            "You are Nexa AI, an autonomous software engineering agent.\n"
+            "You are Nexa AI, an autonomous software engineering agent. You act as the nexa ai planner (planning engine).\n"
             "You operate in an iterative loop. You can call tools to explore the workspace, read files, and eventually achieve the user's goal.\n"
             "When you have gathered enough information and are ready to propose the final execution plan, you must return a final response.\n"
         )
@@ -175,35 +175,45 @@ class AILoopEngine:
                                 approval_event.set()
                         def on_planning_revision(ctx):
                             nonlocal user_action
-                            if ctx.event_name == "PlanningRevisionRequested":
+                            if ctx.event_name == "PlanRevisionRequested":
                                 user_action["action"] = "comment"
                                 user_action["comment"] = ctx.payload.get("comment", "")
                                 approval_event.set()
+                        def on_approval_rejected(ctx):
+                            nonlocal user_action
+                            if ctx.event_name == "ApprovalRejected":
+                                user_action["action"] = "no"
+                                approval_event.set()
                         
                         self.bus.subscribe("ApprovalGranted", on_approval_granted)
-                        self.bus.subscribe("PlanningRevisionRequested", on_planning_revision)
+                        self.bus.subscribe("PlanRevisionRequested", on_planning_revision)
+                        self.bus.subscribe("ApprovalRejected", on_approval_rejected)
                         
-                        self.bus.publish_async(EventContext(
-                            event_name="BeforeApproval",
-                            timestamp=datetime.datetime.now().isoformat(),
-                            source="AILoopEngine",
-                            priority=EventPriority.HIGH,
-                            session_id=session_id,
-                            payload={"plan": dummy_plan}
-                        ))
-                        
-                        if self.bus:
-                            self.bus.publish(EventContext(
-                                event_name="ToolCalled",
+                        try:
+                            self.bus.publish_async(EventContext(
+                                event_name="BeforeApproval",
                                 timestamp=datetime.datetime.now().isoformat(),
                                 source="AILoopEngine",
-                                priority=EventPriority.NORMAL,
+                                priority=EventPriority.HIGH,
                                 session_id=session_id,
-                                payload={"tool_name": f"Awaiting approval for {tname}", "status": "running"}
+                                payload={"plan": dummy_plan, "tool_approval": True}
                             ))
-                        approval_event.wait()
-                        self.bus.unsubscribe("ApprovalGranted", on_approval_granted)
-                        self.bus.unsubscribe("PlanningRevisionRequested", on_planning_revision)
+                            
+                            if self.bus:
+                                self.bus.publish(EventContext(
+                                    event_name="ToolCalled",
+                                    timestamp=datetime.datetime.now().isoformat(),
+                                    source="AILoopEngine",
+                                    priority=EventPriority.NORMAL,
+                                    session_id=session_id,
+                                    payload={"tool_name": f"Awaiting approval for {tname}", "status": "running"}
+                                ))
+                            if not approval_event.wait(timeout=60.0):
+                                user_action["action"] = "timeout"
+                        finally:
+                            self.bus.unsubscribe("ApprovalGranted", on_approval_granted)
+                            self.bus.unsubscribe("PlanRevisionRequested", on_planning_revision)
+                            self.bus.unsubscribe("ApprovalRejected", on_approval_rejected)
                         
                         if user_action["action"] == "yes":
                             if self.bus:
@@ -237,7 +247,10 @@ class AILoopEngine:
                                     session_id=session_id,
                                     payload={"tool_name": tname, "status": "error"}
                                 ))
-                            result_str = "Execution aborted by user."
+                            if user_action.get("action") == "timeout":
+                                result_str = "Execution aborted due to timeout."
+                            else:
+                                result_str = "Execution aborted by user."
                     else:
                         # Auto-execute safe tools
                         if self.bus:

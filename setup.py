@@ -6,6 +6,7 @@ setup(
     description="Nexa AI Framework - Autonomous Coding Assistant",
     author="Nexa Team",
     packages=find_packages(),
+    include_package_data=True,
     install_requires=[
         # Dependencies yang kita butuhkan
         "click>=8.0.0",
@@ -17,11 +18,12 @@ setup(
         "groq>=0.4.0",
         "openai>=1.0.0",
         "textual>=0.80",
+        "PyYAML>=6.0",
     ],
     entry_points={
         "console_scripts": [
             "nexa=nexa.cli:main",
         ],
     },
-    python_requires=">=3.8",
+    python_requires=">=3.11",
 )

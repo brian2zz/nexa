@@ -25,10 +25,21 @@ class CommandPaletteModal(ModalScreen[str]):
     
     def compose(self) -> ComposeResult:
         yield OptionList(
-            Option("/status - Show runtime status", id="/status"),
             Option("/help - Show available commands", id="/help"),
-            Option("/select-provider - Change LLM provider", id="/select-provider"),
-            Option("/clear - Clear chat history", id="/clear"),
+            Option("/status - Show runtime status", id="/status"),
+            Option("/plan - Generate an Execution Plan for a task", id="/plan"),
+            Option("/commands - Show CLI commands for this project", id="/commands"),
+            Option("/history - Show chat session history", id="/history"),
+            Option("/session list - Show all chat sessions", id="/session list"),
+            Option("/load - Load a past chat session", id="/load"),
+            Option("/clear - Clear current chat session", id="/clear"),
+            Option("/select-provider - Switch AI Provider", id="/select-provider"),
+            Option("/set-model - Set active model for provider", id="/set-model"),
+            Option("/set-api-key - Set API Key for provider", id="/set-api-key"),
+            Option("/facts - Show project facts", id="/facts"),
+            Option("/pins - Show pinned memory", id="/pins"),
+            Option("/pin - Pin last AI response", id="/pin"),
+            Option("/clearpins - Clear all pinned memory", id="/clearpins"),
             Option("/exit - Quit the application", id="/exit"),
             id="palette-list"
         )
