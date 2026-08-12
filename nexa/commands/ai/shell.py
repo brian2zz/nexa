@@ -210,22 +210,63 @@ def handle(args):
         elif cmd.lower().startswith("/select-provider"):
             parts = cmd.split()
             if len(parts) < 2:
-                print("Usage: /select-provider <name> (e.g. ollama, deepseek)")
+                try:
+                    from prompt_toolkit.shortcuts import radiolist_dialog
+                    provider_name = radiolist_dialog(
+                        title="Select AI Provider",
+                        text="Choose a provider:",
+                        values=[
+                            ("ollama", "Ollama (Local)"),
+                            ("deepseek", "DeepSeek (Cloud)"),
+                            ("groq", "Groq (Cloud)"),
+                            ("gemini", "Gemini (Cloud)"),
+                            ("mock", "Mock (Testing)")
+                        ]
+                    ).run()
+                    if not provider_name:
+                        return True
+                except Exception:
+                    print("Usage: /select-provider <name> (e.g. ollama, deepseek)")
+                    return True
             else:
                 provider_name = parts[1].lower()
-                Config.set("provider", provider_name)
-                print(f"[*] Provider switched to: {provider_name}")
-                check_provider_readiness(provider_name)
+                
+            Config.set("provider", provider_name)
+            print(f"[*] Provider switched to: {provider_name}")
+            check_provider_readiness(provider_name)
                 
         elif cmd.lower().startswith("/set-model"):
             parts = cmd.split()
+            provider = Config.get("provider", "mock")
             if len(parts) < 2:
-                print("Usage: /set-model <model_name>")
+                try:
+                    from prompt_toolkit.shortcuts import radiolist_dialog
+                    if provider == "ollama":
+                        opts = [("llama3", "llama3"), ("llama3.1", "llama3.1"), ("deepseek-coder", "deepseek-coder"), ("phi3", "phi3"), ("mistral", "mistral")]
+                    elif provider == "deepseek":
+                        opts = [("deepseek-chat", "deepseek-chat"), ("deepseek-coder", "deepseek-coder")]
+                    elif provider == "groq":
+                        opts = [("llama3-70b-8192", "llama3-70b-8192"), ("mixtral-8x7b-32768", "mixtral-8x7b-32768")]
+                    elif provider == "gemini":
+                        opts = [("gemini-1.5-pro-latest", "gemini-1.5-pro"), ("gemini-1.5-flash-latest", "gemini-1.5-flash")]
+                    else:
+                        opts = [("default", "default")]
+
+                    model_name = radiolist_dialog(
+                        title=f"Select Model for {provider}",
+                        text="Choose a model:",
+                        values=opts
+                    ).run()
+                    if not model_name:
+                        return True
+                except Exception:
+                    print("Usage: /set-model <model_name>")
+                    return True
             else:
                 model_name = parts[1]
-                provider = Config.get("provider")
-                Config.set(f"{provider}.model", model_name)
-                print(f"[*] Model for {provider} set to: {model_name}")
+                
+            Config.set(f"{provider}.model", model_name)
+            print(f"[*] Model for {provider} set to: {model_name}")
                 
         elif cmd.lower().startswith("/set-api-key"):
             provider = Config.get("provider")

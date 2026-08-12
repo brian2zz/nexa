@@ -227,7 +227,18 @@ class NexaApp(App):
             self.query_one("#transcript").scroll_end(animate=False)
         
     def on_input_submitted(self, event: Input.Submitted):
-        cmd = event.value
+        cmd = event.value.strip()
+        if not cmd:
+            return
+            
+        needs_args_or_modal = ["/select-provider", "/set-model", "/set-api-key", "/load", "/plan", "/facts set", "/facts remove", "/unpin", "/session enter", "/session delete"]
+        
+        # If user types exactly the command without args, trigger the palette handler (which shows modal or prepopulates input)
+        if cmd in needs_args_or_modal:
+            event.input.value = ""
+            self.handle_palette_result(cmd)
+            return
+            
         event.input.value = ""
         self.print_to_chat(cmd, role="user")
         self.status_bar.status_text = "Processing..."
