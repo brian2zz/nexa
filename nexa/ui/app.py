@@ -315,6 +315,13 @@ class NexaApp(App):
         _, status = self._EVENT_LABELS.get(ctx.event_name, ("", "info"))
         return status
 
+    def safe_invoke(self, func, *args, **kwargs):
+        import threading
+        if threading.get_ident() == getattr(self, "_thread_id", None):
+            func(*args, **kwargs)
+        else:
+            self.call_from_thread(func, *args, **kwargs)
+
     def on_bus_message(self, message: BusMessage):
         ctx = message.event_context
         payload = ctx.payload or {}
@@ -332,24 +339,24 @@ class NexaApp(App):
                               "BeforeTransformation", "AfterTransformation",
                               "RetryStarted", "RollbackStarted", "RollbackCompleted",
                               "RecoverySucceeded", "RecoveryFailed"):
-            self.status_panel.add_process(self._human_event(ctx), self._status_of(ctx))
+            self.safe_invoke(self.status_panel.add_process, self._human_event(ctx), self._status_of(ctx))
             return
 
         if ctx.event_name == "AgentLoopIteration":
             iter_num = payload.get("iteration", 0)
             max_iter = payload.get("max_iterations", 15)
-            self.call_from_thread(self.status_panel.add_process, f"Agent Loop [{iter_num}/{max_iter}]", "running")
+            self.safe_invoke(self.status_panel.add_process, f"Agent Loop [{iter_num}/{max_iter}]", "running")
             return
             
         if ctx.event_name == "UI_Print":
             msg = ctx.payload.get("message", "")
             role = ctx.payload.get("role", "ai")
-            self.call_from_thread(self.print_to_chat, msg, role)
+            self.safe_invoke(self.print_to_chat, msg, role)
             return
 
         if ctx.event_name == "AgentTasksUpdated":
             tasks = payload.get("tasks", [])
-            self.call_from_thread(self.status_panel.set_agent_tasks, tasks)
+            self.safe_invoke(self.status_panel.set_agent_tasks, tasks)
             return
 
             
@@ -361,7 +368,7 @@ class NexaApp(App):
                           if not isinstance(plan, dict)
                           else plan.get("work_items", []))
             if work_items:
-                self.call_from_thread(self.status_panel.set_todos, work_items)
+                self.safe_invoke(self.status_panel.set_todos, work_items)
 
         if ctx.event_name == "ClarificationRequested":
             questions = payload.get("questions", [])
