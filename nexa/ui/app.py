@@ -191,6 +191,15 @@ class NexaApp(App):
             session_id=self.runtime.session_id,
         )
         self.status_panel.set_provider_rates(provider)
+
+        # Override Textual's dummy stdout with our RedirectedStdout
+        self.original_stdout = sys.stdout
+        sys.stdout = RedirectedStdout(self)
+        
+        self.current_ai_msg = None
+        
+        self.print_to_chat("Welcome to Nexa AI Interactive Shell (TUI).\nType /help for available commands or /exit to quit.", role="ai")
+        
         self.set_interval(1.0, self.refresh_status_panel)
 
     def refresh_status_panel(self):
@@ -204,14 +213,6 @@ class NexaApp(App):
             session_id=self.runtime.session_id,
         )
 
-        # Override Textual's dummy stdout with our RedirectedStdout
-        self.original_stdout = sys.stdout
-        sys.stdout = RedirectedStdout(self)
-        
-        self.current_ai_msg = None
-        
-        self.print_to_chat("Welcome to Nexa AI Interactive Shell (TUI).\nType /help for available commands or /exit to quit.", role="ai")
-        
     def on_unmount(self):
         sys.stdout = getattr(self, "original_stdout", sys.stdout)
 
