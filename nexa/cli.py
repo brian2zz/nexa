@@ -3,6 +3,7 @@ import subprocess
 import importlib
 import os
 from nexa import __version__
+from nexa.commands.registry import GROUPS, render_root_help, render_group_help, render_command_help
 
 def detect_project_type() -> str:
     """Mendeteksi tipe project berdasarkan file yang ada di direktori saat ini."""
@@ -14,16 +15,9 @@ def detect_project_type() -> str:
         return 'php'
     return 'unknown'
 
-
-def main():
-    args = sys.argv[1:]
-
+def dispatch(args):
     if not args:
-        print('Nexa CLI - Framework Developer Tool')
-        print('Usage: nexa <command> [args]')
-        print('Available Commands:')
-        print('  django   - Group of commands related to Django project (e.g. nexa django startapp)')
-        print('  flutter  - Group of commands related to Flutter project (e.g. nexa flutter create-module)')
+        render_root_help()
         return
 
     command = args[0]
@@ -31,228 +25,150 @@ def main():
     if command in ['-v', '--version', 'version']:
         print(f"\033[96mNexa AI Framework v{__version__}\033[0m")
         return
-
-    # Mappings untuk built-in nexa django commands
-    built_in_commands = {
-        'run': 'nexa.commands.django.run',
-        'new': 'nexa.commands.django.new',
-        'startapp': 'nexa.commands.django.startapp',
-        'install': 'nexa.commands.django.install',
-        'build': 'nexa.commands.django.build',
-        'make:api': 'nexa.commands.django.makeapi',
-        'generate': 'nexa.commands.django.generate',
-        'doctor': 'nexa.commands.django.doctor',
-        'sync': 'nexa.commands.django.sync',
-        'inspect': 'nexa.commands.django.inspect',
-        'dev': 'nexa.commands.django.dev',
-    }
-
-    # Mappings untuk built-in nexa flutter commands
-    built_in_flutter_commands = {
-        'create-module': 'nexa.commands.flutter.create_module',
-        'doctor': 'nexa.commands.flutter.doctor',
-        'new': 'nexa.commands.flutter.new',
-        'gen-model': 'nexa.commands.flutter.gen_model',
-        'run': 'nexa.commands.flutter.run',
-        'generate': 'nexa.commands.flutter.generate',
-    }
-
-    # Mappings untuk built-in nexa php commands
-    built_in_php_commands = {
-        'new': 'nexa.commands.php.new',
-        'make:module': 'nexa.commands.php.make_module',
-        'make:model': 'nexa.commands.php.make_model',
-        'run': 'nexa.commands.php.run',
-        'generate': 'nexa.commands.php.generate',
-        'install': 'nexa.commands.php.install',
-        'make:migration': 'nexa.commands.php.make_migration',
-        'make:migrate': 'nexa.commands.php.migrate',
-        'migrate': 'nexa.commands.php.migrate',
-    }
-
-    # Mappings untuk built-in nexa ai commands
-    built_in_ai_commands = {
-        'scan': 'nexa.commands.ai.scan',
-        'tree': 'nexa.commands.ai.tree',
-        'analyze': 'nexa.commands.ai.analyze',
-        'plan': 'nexa.commands.ai.plan',
-        'ai': 'nexa.commands.ai.shell',
-        'explain': 'nexa.commands.ai.explain',
-        'create': 'nexa.commands.ai.create',
-        'ask': 'nexa.commands.ai.ask',
-    }
-
-    if command == 'django':
-        django_args = args[1:]
-        if not django_args:
-            print('Nexa Django CLI')
-            print('Usage: nexa django <subcommand> [args]')
-            print('Available subcommands:')
-            for sub in sorted(built_in_commands.keys()):
-                print(f'  {sub}')
-            return
-            
-        subcommand = django_args[0]
-        sub_args = django_args[1:]
         
-        if subcommand in built_in_commands:
-            # Memuat modul dinamis
-            module_name = built_in_commands[subcommand]
-            module = importlib.import_module(module_name)
-            module.handle(sub_args)
+    if command in ['help', '-h', '--help']:
+        if len(args) > 1:
+            if args[1] in GROUPS:
+                render_group_help(args[1])
+            else:
+                print(f"Untuk bantuan spesifik grup, jalankan: nexa {args[1]} help")
         else:
-            # Fallback otomatis ke python manage.py <subcommand>
-            subprocess.run([
-                'python',
-                'manage.py',
-                subcommand,
-                *sub_args
-            ])
+            render_root_help()
+        return
 
-    elif command == 'flutter':
-        flutter_args = args[1:]
-        if not flutter_args:
-            print('Nexa Flutter CLI')
-            print('Usage: nexa flutter <subcommand> [args]')
-            print('Available subcommands:')
-            for sub in sorted(built_in_flutter_commands.keys()):
-                print(f'  {sub}')
-            return
-
-        subcommand = flutter_args[0]
-        sub_args = flutter_args[1:]
-
-        if subcommand in built_in_flutter_commands:
-            # Memuat modul dinamis
-            module_name = built_in_flutter_commands[subcommand]
-            module = importlib.import_module(module_name)
-            module.handle(sub_args)
-        else:
-            # Fallback otomatis ke perintah native flutter (e.g. flutter run, flutter build)
-            subprocess.run([
-                'flutter',
-                subcommand,
-                *sub_args
-            ], shell=(os.name == 'nt'))
-    elif command == 'update':
+    if command == 'update':
         print("[INFO] Mengunduh dan memperbarui Nexa Framework dari GitHub...")
         subprocess.run([
             sys.executable, '-m', 'pip', 'install', '--upgrade', '--force-reinstall', '--no-cache-dir', 'git+https://github.com/brian2zz/nexa.git'
         ])
         print("✅ Nexa berhasil diperbarui ke versi terbaru!")
         return
-            
-    elif command == 'php':
-        php_args = args[1:]
-        if not php_args:
-            print('Nexa PHP CLI')
-            print('Usage: nexa php <subcommand> [args]')
-            print('Available subcommands:')
-            for sub in sorted(built_in_php_commands.keys()):
-                print(f'  {sub}')
+
+    # Check if command is a group
+    if command in GROUPS:
+        sub_args = args[1:]
+        if not sub_args:
+            render_group_help(command)
             return
-
-        subcommand = php_args[0]
-        sub_args = php_args[1:]
-
-        if subcommand in built_in_php_commands:
-            module_name = built_in_php_commands[subcommand]
-            module = importlib.import_module(module_name)
-            module.handle(sub_args)
+            
+        subcommand = sub_args[0]
+        if subcommand in ['help', '-h', '--help']:
+            render_group_help(command)
+            return
+            
+        # Check if subcommand is asking for help
+        if len(sub_args) > 1 and sub_args[1] in ['help', '-h', '--help']:
+            render_command_help(command, subcommand)
+            return
+            
+        # Find subcommand in group
+        target_module = None
+        for cmd in GROUPS[command]:
+            if cmd["name"] == subcommand:
+                target_module = cmd["module"]
+                break
+                
+        if target_module:
+            try:
+                module = importlib.import_module(target_module)
+                module.handle(sub_args[1:])
+            except Exception as e:
+                print(f"[!] Gagal mengeksekusi {command} {subcommand}: {e}")
+                import traceback
+                traceback.print_exc()
         else:
-            print(f"Unknown PHP subcommand: {subcommand}")
-            
-    elif command in built_in_ai_commands:
-        module_name = built_in_ai_commands[command]
-        module = importlib.import_module(module_name)
-        module.handle(args[1:])
-            
-    elif command in built_in_commands or command in built_in_flutter_commands or command in built_in_php_commands:
-        options = []
-        if command in built_in_commands:
-            options.append('django')
-        if command in built_in_flutter_commands:
-            options.append('flutter')
-        if command in built_in_php_commands:
-            options.append('php')
+            # Fallbacks for specific groups
+            if command == 'django':
+                subprocess.run(['python', 'manage.py', subcommand, *sub_args[1:]])
+            elif command == 'flutter':
+                subprocess.run(['flutter', subcommand, *sub_args[1:]], shell=(os.name == 'nt'))
+            elif command == 'php':
+                if os.path.exists('artisan'):
+                    subprocess.run(['php', 'artisan', subcommand, *sub_args[1:]])
+                elif os.path.exists('package.json'):
+                    subprocess.run(['npm', 'run', subcommand, *sub_args[1:]], shell=(os.name == 'nt'))
+                else:
+                    print(f"Unknown PHP subcommand: {subcommand}")
+            else:
+                print(f"[!] Unknown subcommand '{subcommand}' for group '{command}'")
+        return
 
-        # Coba auto-detect project type dulu
+    # Top-level shorthand resolving
+    shorthands = {}
+    for group, cmds in GROUPS.items():
+        if group == 'ai': continue # Do not auto-detect AI commands at top level anymore (breaking change)
+        for cmd in cmds:
+            name = cmd["name"]
+            if name not in shorthands:
+                shorthands[name] = []
+            shorthands[name].append((group, cmd["module"]))
+            
+    if command in shorthands:
+        options = shorthands[command]
         detected_type = detect_project_type()
         
-        if detected_type in options:
-            # Kita temukan project type, langsung eksekusi tanpa nanya
+        # If auto-detect works and matches one of the options
+        matched_option = next((opt for opt in options if opt[0] == detected_type), None)
+        if matched_option:
             print(f"[AUTO-DETECT] Project {detected_type.capitalize()} terdeteksi. Mengarahkan ke 'nexa {detected_type} {command}'...")
-            if detected_type == 'django':
-                module_name = built_in_commands[command]
-            elif detected_type == 'flutter':
-                module_name = built_in_flutter_commands[command]
-            else:
-                module_name = built_in_php_commands[command]
-            module = importlib.import_module(module_name)
+            module = importlib.import_module(matched_option[1])
             module.handle(args[1:])
             return
-
-        # Jika project terdeteksi tapi command tidak ada di opsi internal platform ini (e.g. build di flutter)
+            
+        # If project type is detected but command is native fallback
         if detected_type != 'unknown':
             print(f"[AUTO-DETECT] Project {detected_type.capitalize()} terdeteksi. Menjalankan '{command}' sebagai perintah native...")
             if detected_type == 'django':
                 subprocess.run(['python', 'manage.py', command, *args[1:]])
             elif detected_type == 'flutter':
                 subprocess.run(['flutter', command, *args[1:]], shell=(os.name == 'nt'))
-            elif detected_type == 'php' and os.path.exists('artisan'):
-                subprocess.run(['php', 'artisan', command, *args[1:]])
-            elif detected_type == 'php' and os.path.exists('package.json'):
-                subprocess.run(['npm', 'run', command, *args[1:]], shell=(os.name == 'nt'))
+            elif detected_type == 'php':
+                if os.path.exists('artisan'):
+                    subprocess.run(['php', 'artisan', command, *args[1:]])
+                elif os.path.exists('package.json'):
+                    subprocess.run(['npm', 'run', command, *args[1:]], shell=(os.name == 'nt'))
             return
-
-        # Jika gagal detect atau command hanya ada di 1 platform
+            
+        # If unknown and only one choice
         if len(options) == 1:
-            platform = options[0]
+            platform = options[0][0]
             print(f"[HINT] Mengarahkan ke 'nexa {platform} {command}'...")
-            if platform == 'django':
-                module_name = built_in_commands[command]
-            elif platform == 'flutter':
-                module_name = built_in_flutter_commands[command]
-            else:
-                module_name = built_in_php_commands[command]
-            module = importlib.import_module(module_name)
+            module = importlib.import_module(options[0][1])
             module.handle(args[1:])
-        else:
-            print(f"🤔 Perintah '{command}' tersedia di beberapa platform, dan tipe project tidak dapat dideteksi otomatis.")
-            print("1) Django")
-            print("2) Flutter")
-            print("3) PHP")
-            try:
-                choice = input("Pilih platform target (1/2/3): ").strip()
-                if choice == '1':
-                    module_name = built_in_commands[command]
-                    module = importlib.import_module(module_name)
-                    module.handle(args[1:])
-                elif choice == '2':
-                    module_name = built_in_flutter_commands[command]
-                    module = importlib.import_module(module_name)
-                    module.handle(args[1:])
-                elif choice == '3':
-                    module_name = built_in_php_commands[command]
-                    module = importlib.import_module(module_name)
-                    module.handle(args[1:])
-                else:
-                    print("❌ Pilihan tidak valid. Dibatalkan.")
-            except KeyboardInterrupt:
-                print("\n❌ Dibatalkan.")
-                return
-        
+            return
+            
+        # If unknown and multiple choices
+        print(f"🤔 Perintah '{command}' tersedia di beberapa platform, dan tipe project tidak dapat dideteksi otomatis.")
+        for i, opt in enumerate(options, 1):
+            print(f"{i}) {opt[0].capitalize()}")
+        try:
+            choice = input(f"Pilih platform target (1-{len(options)}): ").strip()
+            if choice.isdigit() and 1 <= int(choice) <= len(options):
+                opt = options[int(choice)-1]
+                module = importlib.import_module(opt[1])
+                module.handle(args[1:])
+            else:
+                print("❌ Pilihan tidak valid. Dibatalkan.")
+        except KeyboardInterrupt:
+            print("\n❌ Dibatalkan.")
+        return
+
+    # Native command fallback based on detected type
+    detected_type = detect_project_type()
+    if detected_type == 'django':
+        subprocess.run(['python', 'manage.py', command, *args[1:]])
+    elif detected_type == 'flutter':
+        subprocess.run(['flutter', command, *args[1:]], shell=(os.name == 'nt'))
+    elif detected_type == 'php' and os.path.exists('artisan'):
+        subprocess.run(['php', 'artisan', command, *args[1:]])
     else:
-        # Fallback lama: coba tebak project saat ini, kalau django panggil manage.py, kalau flutter panggil native
-        detected_type = detect_project_type()
-        if detected_type == 'django':
-            subprocess.run(['python', 'manage.py', command, *args[1:]])
-        elif detected_type == 'flutter':
-            subprocess.run(['flutter', command, *args[1:]], shell=(os.name == 'nt'))
-        elif detected_type == 'php' and os.path.exists('artisan'):
-            subprocess.run(['php', 'artisan', command, *args[1:]])
-        else:
-            print(f"❌ Perintah '{command}' tidak dikenali dan bukan dalam project Django/Flutter/PHP yang valid.")
+        print(f"❌ Perintah '{command}' tidak dikenali dan bukan dalam project Django/Flutter/PHP yang valid.")
+
+def main():
+    if sys.stdout.encoding != 'utf-8' and hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(encoding='utf-8')
+    args = sys.argv[1:]
+    dispatch(args)
 
 if __name__ == '__main__':
     main()

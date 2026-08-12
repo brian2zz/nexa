@@ -128,11 +128,26 @@ Nexa CLI memisahkan ekosistem perintah secara rapi di bawah kendali `django` dan
 | `nexa php make:migration` | Memindai entitas Doctrine ORM dan membuat berkas migrasi PHP. |
 | `nexa php migrate` | Mengeksekusi migrasi ke dalam basis data aktif. |
 
+### 🤖 Grup Perintah AI & Agen Otonom (`nexa ai <command>`)
+
+| Perintah | Fungsi / Peran |
+| :--- | :--- |
+| `nexa ai shell` | Membuka *interactive shell* AI. |
+| `nexa ai scan` | Memindai dan membuat indeks repositori proyek. |
+| `nexa ai tree` | Menampilkan struktur arsitektur direktori. |
+| `nexa ai analyze` | Menganalisis *tech-debt* dan arsitektur kode. |
+| `nexa ai plan [goal]` | Membangun rencana eksekusi dan modifikasi. |
+| `nexa ai create [desc]` | Agen otonom untuk *scaffolding* fitur. |
+| `nexa ai explain` | Menjelaskan *source code* secara komprehensif. |
+| `nexa ai ask [question]`| Mengajukan pertanyaan ke agen AI. |
+
 ### 🛠️ Perintah Utilitas Global
 
 | Perintah | Fungsi / Peran |
 | :--- | :--- |
 | `nexa update` | Mengunduh dan memperbarui instalasi Nexa CLI ke versi terbaru. |
+| `nexa help` | Menampilkan panduan dan struktur lengkap CLI. |
+| `nexa version` | Menampilkan versi instalasi CLI. |
 
 ---
 

@@ -14,8 +14,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Verification and approval gates for safe execution
 - Project planning, cognitive clarification, and problem-solving memory
 
+### Changed
+- Refactored CLI help system and command dispatching to use a central registry.
+- Moved all top-level AI commands (scan, plan, tree, etc.) into the `nexa ai <command>` namespace.
+
 ### Fixed
 - Fixed packaging issue (missing templates in PyPI package)
+- Fixed `nexa help` crashing due to `UnicodeEncodeError` on Windows
 - Fixed `nexa plan` crashing due to outdated imports
 - Cleaned up experimental and dummy scripts
 - Fixed sqlite DeprecationWarning for Python 3.12+
