@@ -47,6 +47,7 @@ class ChatMessage(Vertical):
         self.role = role
         self._text_buffer = text
         self.is_thinking = False
+        self._last_thought = ""
         self.markdown = Markdown(self._text_buffer)
         
     def compose(self) -> ComposeResult:
@@ -62,6 +63,10 @@ class ChatMessage(Vertical):
         
     def add_thought(self, text: str):
         """Menambahkan log proses (seperti classfiying intent) ke dalam Collapsible."""
+        if text == self._last_thought:
+            return
+        self._last_thought = text
+        
         container = self.query_one("#message-thought-container")
         container.styles.display = "block" # Munculkan
         log = self.query_one("#message-thought-log", RichLog)

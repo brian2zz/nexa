@@ -191,6 +191,18 @@ class NexaApp(App):
             session_id=self.runtime.session_id,
         )
         self.status_panel.set_provider_rates(provider)
+        self.set_interval(1.0, self.refresh_status_panel)
+
+    def refresh_status_panel(self):
+        provider = Config.get("provider", "mock")
+        model = Config.get(f"{provider}.model", "unknown")
+        self.status_panel.set_info(
+            version=NEXA_VERSION,
+            project_path=self.runtime.cwd,
+            provider=provider,
+            model=model,
+            session_id=self.runtime.session_id,
+        )
 
         # Override Textual's dummy stdout with our RedirectedStdout
         self.original_stdout = sys.stdout
