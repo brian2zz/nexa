@@ -3,29 +3,19 @@ import getpass
 from nexa.config import Config
 from nexa.core.ai.providers.factory import ProviderFactory
 
+from nexa.commands.ai.slash_commands import SLASH_METADATA, SLASH_ALIASES, SlashCommandHandler
+
 def print_help():
     print("\n=== Nexa AI Interactive Shell - Built-in Commands ===")
-    print("  /select-provider <name>  : Switch AI Provider (ollama, deepseek, mock)")
-    print("  /set-model <name>        : Set the active model for the current provider")
-    print("  /status                  : Show current configuration")
-    print("  /history                 : Show chat session history (alias for /session list)")
-    print("  /load <id>               : Load a past chat session (alias for /session enter)")
-    print("  /clear                   : Clear current chat session")
-    print("  /session list            : Show all chat sessions for this project")
-    print("  /session enter <id>      : Switch to a specific session")
-    print("  /session delete <id>     : Delete a specific session")
-    print("  /session clear-all       : Delete all sessions for this project")
-    print("  /plan <goal>             : Generate an Execution Plan for a task")
-    print("  /facts                   : Show project facts")
-    print("  /facts set <k> <v>       : Set a project fact")
-    print("  /facts remove <k>        : Remove a project fact")
-    print("  /pin [text]              : Pin last AI response or text")
-    print("  /pins                    : Show pinned memory")
-    print("  /unpin <id>              : Remove a pinned memory")
-    print("  /clearpins               : Clear all pinned memory")
-    print("  /commands                : Show available CLI commands for this project")
-    print("  /exit, /quit, exit       : Exit the shell")
-    print("  /help                    : Show this help message")
+    categories = {}
+    for cmd, desc, cat in SLASH_METADATA:
+        categories.setdefault(cat, []).append((cmd, desc))
+
+    for cat, items in categories.items():
+        print(f"\n[{cat}]")
+        for cmd, desc in items:
+            print(f"  {cmd:<20}: {desc}")
+    print("\nType your prompt directly to talk with AI.\n======================================================\n")
     print("\n=== Nexa Global CLI Commands (Run outside this shell) ===")
     print("  nexa ai                  : Start this interactive AI shell")
     print("  nexa scan                : Scan project structure and vulnerabilities")
@@ -127,7 +117,9 @@ def handle(args):
         slash_completer = NestedCompleter.from_nested_dict({
             '/help': None,
             '/status': None,
+            '/connect': None,
             '/select-provider': provider_completer,
+            '/models': model_completer,
             '/set-model': model_completer,
             '/set-api-key': None,
             '/dir': path_completer,
@@ -135,12 +127,41 @@ def handle(args):
             '/history': None,
             '/load': None,
             '/clear': None,
+            '/new': None,
             '/plan': None,
-            '/facts': None,
+            '/editor': None,
+            '/init': None,
+            '/context': None,
+            '/rename': None,
+            '/export': None,
+            '/compact': None,
+            '/summarize': None,
+            '/share': None,
+            '/unshare': None,
+            '/themes': None,
+            '/details': None,
+            '/thinking': None,
+            '/facts': {
+                'set': None,
+                'remove': None,
+            },
             '/pin': None,
             '/pins': None,
             '/unpin': None,
             '/clearpins': None,
+            '/undo': None,
+            '/redo': None,
+            '/agents': None,
+            '/skills': None,
+            '/variants': None,
+            '/mcps': None,
+            '/timeline': None,
+            '/sessions': {
+                'list': None,
+                'enter': None,
+                'delete': None,
+                'clear-all': None,
+            },
             '/session': {
                 'list': None,
                 'enter': None,
@@ -150,6 +171,7 @@ def handle(args):
             '/commands': None,
             '/exit': None,
             '/quit': None,
+            '/q': None,
         })
         
         # Combine slash commands with inline @ mentions
@@ -169,11 +191,59 @@ def handle(args):
             model = Config.get(f"{provider}.model", "unknown")
             return input(f"Nexa>{model}> ").strip()
             
+    slash_handler = SlashCommandHandler(runtime, cwd, memory_manager, facts_manager, pins_manager, framework)
+
     def command_handler(cmd):
         nonlocal last_ai_response
         if not cmd:
             return True
-            
+
+        # Resolve aliases
+        clean_cmd = cmd.strip()
+        first_word = clean_cmd.split()[0].lower() if clean_cmd else ""
+        if first_word in SLASH_ALIASES:
+            clean_cmd = SLASH_ALIASES[first_word] + clean_cmd[len(first_word):]
+            first_word = clean_cmd.split()[0].lower()
+
+        # Handle Extended / OpenCode Parity Slash Commands
+        if first_word == "/connect":
+            return slash_handler.handle_connect(clean_cmd[8:].strip(), last_ai_response)
+        elif first_word == "/models":
+            return slash_handler.handle_models(clean_cmd[7:].strip(), last_ai_response)
+        elif first_word == "/init":
+            return slash_handler.handle_init(clean_cmd[5:].strip(), last_ai_response)
+        elif first_word == "/themes":
+            return slash_handler.handle_themes(clean_cmd[7:].strip(), last_ai_response)
+        elif first_word == "/mode":
+            return slash_handler.handle_mode(clean_cmd[5:].strip(), last_ai_response)
+        elif first_word in ["/details", "/thinking"]:
+            return slash_handler.handle_details(clean_cmd[len(first_word):].strip(), last_ai_response)
+        elif first_word == "/rename":
+            return slash_handler.handle_rename(clean_cmd[7:].strip(), last_ai_response)
+        elif first_word == "/export":
+            return slash_handler.handle_export(clean_cmd[7:].strip(), last_ai_response)
+        elif first_word == "/compact":
+            return slash_handler.handle_compact(clean_cmd[8:].strip(), last_ai_response)
+        elif first_word == "/share":
+            return slash_handler.handle_share(clean_cmd[6:].strip(), last_ai_response)
+        elif first_word == "/unshare":
+            return slash_handler.handle_unshare(clean_cmd[8:].strip(), last_ai_response)
+        elif first_word == "/context":
+            return slash_handler.handle_context(clean_cmd[8:].strip(), last_ai_response)
+        elif first_word == "/agents":
+            return slash_handler.handle_agents(clean_cmd[7:].strip(), last_ai_response)
+        elif first_word == "/undo":
+            return slash_handler.handle_undo(clean_cmd[5:].strip(), last_ai_response)
+        elif first_word == "/redo":
+            return slash_handler.handle_redo(clean_cmd[5:].strip(), last_ai_response)
+        elif first_word in ["/skills", "/variants", "/mcps", "/timeline"]:
+            return slash_handler.handle_stub(first_word[1:])
+        elif clean_cmd.lower().startswith("/sessions"):
+            # Normalize /sessions to /session
+            clean_cmd = "/session" + clean_cmd[9:]
+
+        cmd = clean_cmd
+
         if cmd.lower() in ["/exit", "/quit", "exit", "quit"]:
             print("Exiting Nexa AI Shell.")
             return False
@@ -767,13 +837,20 @@ def handle(args):
                         memory_manager.save_message(runtime.session_id, "user", final_prompt)
                         memory_manager.save_message(runtime.session_id, "assistant", "Meminta klarifikasi tambahan: " + " | ".join(clarifications))
                         
+                    agent_mode = Config.get("agent.mode", "PLAN").upper()
+                    if agent_mode == "PLAN":
+                        # In PLAN mode: Read-only analysis, grill-me explanations, no code write/execution approval
+                        memory_manager.save_message(runtime.session_id, "user", final_prompt)
+                        summary_text = getattr(report.plan, "summary", "") if not isinstance(report.plan, dict) else report.plan.get("summary", "")
+                        print(f"\n[🔍 PLAN MODE - Read Only / Analysis / Grill-me]\n{summary_text}\n(Note: Code changes are locked in PLAN mode. Press TAB or set /mode build to enable writes.)\n")
+                        memory_manager.save_message(runtime.session_id, "assistant", summary_text)
                     elif not work_items and not stages:
                         # LLM hanya melakukan investigasi (Search & Answer)
                         memory_manager.save_message(runtime.session_id, "user", final_prompt)
                         summary_text = getattr(report.plan, "summary", "") if not isinstance(report.plan, dict) else report.plan.get("summary", "")
                         memory_manager.save_message(runtime.session_id, "assistant", summary_text)
                     else:
-                        # TRIGGER APPROVAL WORKFLOW
+                        # TRIGGER APPROVAL WORKFLOW (BUILD MODE)
                         from nexa.core.events.bus import EventContext
                         from nexa.core.models.enums import EventPriority
                         import datetime

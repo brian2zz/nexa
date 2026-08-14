@@ -12,36 +12,24 @@ class CommandPaletteModal(ModalScreen[str]):
     CSS = """
     CommandPaletteModal {
         align: center middle;
-        background: $background 80%;
+        background: rgba(13, 17, 23, 0.85);
     }
     
     #palette-list {
-        width: 50%;
-        height: 50%;
-        border: thick $primary;
-        background: $surface;
+        width: 60%;
+        height: 60%;
+        border: round #58a6ff;
+        background: #161b22;
+        padding: 1;
     }
     """
     
     def compose(self) -> ComposeResult:
-        yield OptionList(
-            Option("/help - Show available commands", id="/help"),
-            Option("/status - Show runtime status", id="/status"),
-            Option("/plan - Generate an Execution Plan for a task", id="/plan"),
-            Option("/commands - Show CLI commands for this project", id="/commands"),
-            Option("/history - Show chat session history", id="/history"),
-            Option("/session list - Show all chat sessions", id="/session list"),
-            Option("/load - Load a past chat session", id="/load"),
-            Option("/clear - Clear current chat session", id="/clear"),
-            Option("/select-provider - Switch AI Provider", id="/select-provider"),
-            Option("/set-model - Set active model for provider", id="/set-model"),
-            Option("/facts - Show project facts", id="/facts"),
-            Option("/pins - Show pinned memory", id="/pins"),
-            Option("/pin - Pin last AI response", id="/pin"),
-            Option("/clearpins - Clear all pinned memory", id="/clearpins"),
-            Option("/exit - Quit the application", id="/exit"),
-            id="palette-list"
-        )
+        from nexa.commands.ai.slash_commands import SLASH_METADATA
+        options = [
+            Option(f"{cmd} - {desc}", id=cmd) for cmd, desc, _ in SLASH_METADATA
+        ]
+        yield OptionList(*options, id="palette-list")
         
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         cmd = event.option.id
@@ -54,14 +42,23 @@ class GenericSelectionModal(ModalScreen[str]):
     CSS = """
     GenericSelectionModal {
         align: center middle;
-        background: $background 80%;
+        background: rgba(13, 17, 23, 0.85);
+    }
+    
+    #selection-title {
+        width: 60%;
+        color: #58a6ff;
+        text-style: bold;
+        padding-bottom: 1;
+        content-align: center middle;
     }
     
     #selection-list {
-        width: 50%;
-        height: 50%;
-        border: thick $primary;
-        background: $surface;
+        width: 60%;
+        height: 60%;
+        border: round #58a6ff;
+        background: #161b22;
+        padding: 1;
     }
     """
     
@@ -80,6 +77,92 @@ class GenericSelectionModal(ModalScreen[str]):
         val = event.option.id
         if val:
             self.dismiss(val)
+
+class SessionSelectionModal(ModalScreen[tuple]):
+    """Interactive Session Selection Modal with DEL key support to delete sessions."""
+
+    CSS = """
+    SessionSelectionModal {
+        align: center middle;
+        background: rgba(13, 17, 23, 0.85);
+    }
+
+    #session-modal-title {
+        width: 70%;
+        color: #58a6ff;
+        text-style: bold;
+        padding-bottom: 0;
+        content-align: center middle;
+    }
+
+    #session-modal-subtitle {
+        width: 70%;
+        color: #8b949e;
+        padding-bottom: 1;
+        content-align: center middle;
+    }
+
+    #session-list {
+        width: 70%;
+        height: 65%;
+        border: round #58a6ff;
+        background: #161b22;
+        padding: 1;
+    }
+    """
+
+    BINDINGS = [
+        ("delete", "delete_session", "Delete"),
+        ("backspace", "delete_session", "Delete"),
+        ("escape", "cancel", "Cancel"),
+    ]
+
+    def __init__(self, memory_manager, project_path: str, current_session_id: int, **kwargs):
+        super().__init__(**kwargs)
+        self.memory_manager = memory_manager
+        self.project_path = project_path
+        self.current_session_id = current_session_id
+
+    def compose(self) -> ComposeResult:
+        from textual.widgets import Label
+        yield Label("💬 Select Chat Session", id="session-modal-title")
+        yield Label("[Enter] Select / Resume  •  [DEL / Backspace] Delete Session  •  [ESC] Cancel", id="session-modal-subtitle")
+        yield OptionList(id="session-list")
+
+    def on_mount(self) -> None:
+        self.refresh_session_list()
+
+    def refresh_session_list(self) -> None:
+        olist = self.query_one("#session-list", OptionList)
+        olist.clear_options()
+        sessions = self.memory_manager.get_project_sessions(self.project_path, limit=20)
+        if not sessions:
+            olist.add_option(Option("No past sessions found. (Press ESC to close)", id="none"))
+            return
+
+        for sid, created_at, msg_count, name in sessions:
+            dt_str = str(created_at).split('.')[0] if created_at else ""
+            title = name if name else f"Session #{sid}"
+            active_badge = " [Active]" if sid == self.current_session_id else ""
+            display_text = f"#{sid} | {title} ({msg_count} msgs) - {dt_str}{active_badge}"
+            olist.add_option(Option(display_text, id=str(sid)))
+
+    def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
+        val = event.option.id
+        if val and val != "none":
+            self.dismiss(("select", int(val)))
+
+    def action_delete_session(self) -> None:
+        olist = self.query_one("#session-list", OptionList)
+        if olist.highlighted is not None and len(olist.options) > 0:
+            opt = olist.get_option_at_index(olist.highlighted)
+            if opt and opt.id and opt.id != "none":
+                sid = int(opt.id)
+                self.memory_manager.delete_session(sid)
+                self.refresh_session_list()
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
 
 class InputModal(ModalScreen[str]):
     """Modal screen for text input (e.g. API keys)."""

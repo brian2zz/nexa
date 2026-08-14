@@ -14,31 +14,38 @@ class ChatMessage(Vertical):
     ChatMessage {
         width: 100%;
         height: auto;
-        padding: 1;
+        padding: 1 2;
         margin-bottom: 1;
-        border-bottom: solid $surface-lighten-1;
+        background: #161b22;
+        border: solid #21262d;
+        border-left: thick #30363d;
     }
     
     .chat-user {
-        color: $primary;
+        color: #58a6ff;
         text-style: bold;
+        padding-bottom: 0;
     }
     
     .chat-ai {
-        color: $success;
+        color: #3fb950;
         text-style: bold;
+        padding-bottom: 0;
     }
     
     #message-thought-container {
-        display: none; /* Sembunyikan secara default jika kosong */
+        display: none;
+        margin-top: 1;
         margin-bottom: 1;
-        border: solid $surface;
+        background: #0d1117;
+        border: round #30363d;
     }
     
     #message-thought-log {
-        height: 5;
-        background: $surface;
-        color: $text-muted;
+        height: 6;
+        background: #0d1117;
+        color: #8b949e;
+        padding: 0 1;
     }
     """
     

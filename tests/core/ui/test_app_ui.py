@@ -1,10 +1,12 @@
+import sys
 import pytest
 from nexa.core.events.bus import PipelineBus
 from nexa.core.models.enums import EventPriority
 from nexa.core.models.events import EventContext
 from nexa.ui.app import NexaApp
+from textual.widgets import OptionList
 from nexa.ui.screens.approval import ApprovalModal
-from nexa.ui.screens.palette import CommandPaletteModal
+from nexa.ui.screens.palette import CommandPaletteModal, SessionSelectionModal
 from nexa.ui.screens.clarification import ClarificationModal
 
 
@@ -117,6 +119,72 @@ async def test_palette_opens_and_executes():
 
 
 @pytest.mark.asyncio
+async def test_editor_action_and_input(monkeypatch, tmp_path):
+    app = make_app()
+    fake_editor = tmp_path / "fake_editor.py"
+    fake_editor.write_text(
+        "import sys\n"
+        "with open(sys.argv[1], 'w', encoding='utf-8') as f:\n"
+        "    f.write('Hello from external editor!\\nSecond line')\n"
+    )
+    monkeypatch.setenv("EDITOR", f'"{sys.executable}" "{fake_editor.as_posix()}"')
+
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        inp = app.query_one("#prompt-input")
+        app.action_open_editor()
+        await pilot.pause()
+        # Text is loaded into input box ready for user inspection/edit
+        assert "Hello from external editor! Second line" in inp.value
+
+
+@pytest.mark.asyncio
+async def test_slash_input_shows_suggestion_box():
+    app = make_app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        sbox = app.query_one("#suggestion-box", OptionList)
+        assert sbox.display is False
+
+        # Type /
+        await pilot.press("slash")
+        await pilot.pause()
+        assert sbox.display is True
+        assert len(sbox.options) > 0
+
+        # Type 'ed'
+        await pilot.press("e", "d")
+        await pilot.pause()
+        assert sbox.display is True
+        assert any("/editor" in str(opt.prompt) for opt in sbox.options)
+
+        # Backspace until empty
+        await pilot.press("backspace", "backspace", "backspace")
+        await pilot.pause()
+        assert sbox.display is False
+
+
+@pytest.mark.asyncio
+async def test_tab_toggles_plan_and_build_mode():
+    from nexa.config import Config
+    Config.set("agent.mode", "PLAN")
+    app = make_app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        assert app.status_bar.mode == "PLAN"
+        
+        # Press Tab -> Toggle to BUILD
+        await pilot.press("tab")
+        await pilot.pause()
+        assert app.status_bar.mode == "BUILD"
+        
+        # Press Tab -> Toggle back to PLAN
+        await pilot.press("tab")
+        await pilot.pause()
+        assert app.status_bar.mode == "PLAN"
+
+
+@pytest.mark.asyncio
 async def test_status_panel_always_visible():
     app = make_app()
     async with app.run_test(size=(120, 40)) as pilot:
@@ -220,3 +288,30 @@ async def test_clarification_skip_publishes_empty_and_pops():
         await pilot.pause()
         assert answered and answered[-1] == {}
         assert not any(isinstance(s, ClarificationModal) for s in app.screen_stack)
+
+
+@pytest.mark.asyncio
+async def test_session_modal_popup_and_delete():
+    from nexa.core.ai.memory.core import ChatMemoryManager
+    mem = ChatMemoryManager()
+    sid = mem.create_session("test_proj")
+    mem.save_message(sid, "user", "Hello first session")
+    
+    app = make_app()
+    app.runtime.memory_manager = mem
+    app.runtime.cwd = "test_proj"
+    
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        # Trigger /sessions
+        app.handle_palette_result("/sessions")
+        await pilot.pause()
+        assert any(isinstance(s, SessionSelectionModal) for s in app.screen_stack)
+        
+        modal = next(s for s in app.screen_stack if isinstance(s, SessionSelectionModal))
+        olist = modal.query_one("#session-list", OptionList)
+        assert len(olist.options) > 0
+        
+        # Press Delete -> Deletes highlighted session
+        await pilot.press("delete")
+        await pilot.pause()

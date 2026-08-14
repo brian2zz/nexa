@@ -135,6 +135,27 @@ class ChatMemoryManager:
             )
             return cursor.fetchall()
             
+    def delete_last_message(self, session_id: int) -> bool:
+        """Deletes the last message in the session (useful for /undo)."""
+        with self._get_conn() as conn:
+            cursor = conn.execute(
+                "SELECT id FROM messages WHERE session_id = ? ORDER BY id DESC LIMIT 1",
+                (session_id,)
+            )
+            row = cursor.fetchone()
+            if row:
+                conn.execute("DELETE FROM messages WHERE id = ?", (row[0],))
+                conn.commit()
+                return True
+        return False
+
+    def rename_session(self, session_id: int, new_name: str) -> bool:
+        """Renames a specific chat session."""
+        with self._get_conn() as conn:
+            cursor = conn.execute("UPDATE sessions SET name = ? WHERE id = ?", (new_name, session_id))
+            conn.commit()
+            return cursor.rowcount > 0
+
     def delete_session(self, session_id: int) -> bool:
         """Deletes a specific session and its messages (handled by CASCADE if FK is ON, but we explicitly delete to be safe)."""
         with self._get_conn() as conn:

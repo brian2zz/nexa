@@ -4,16 +4,17 @@ import sys
 from textual.app import App, ComposeResult
 from textual.command import Provider, Hit
 from functools import partial
-from textual.containers import VerticalScroll, Horizontal
-from textual.widgets import Input, Static, Header, RichLog
-from textual import work
+from textual.containers import VerticalScroll, Horizontal, Vertical
+from textual.widgets import Input, Static, Header, RichLog, OptionList, TextArea
+from textual.widgets.option_list import Option
+from textual import work, events
 from nexa.ui.bridge import Bridge, BusMessage
 from textual.reactive import reactive
 from nexa.ui.widgets.status_panel import StatusPanel
 from nexa import __version__ as NEXA_VERSION
 from nexa.config import Config
 from nexa.ui.screens.approval import ApprovalModal
-from nexa.ui.screens.palette import CommandPaletteModal, GenericSelectionModal, InputModal
+from nexa.ui.screens.palette import CommandPaletteModal, GenericSelectionModal, InputModal, SessionSelectionModal
 from nexa.ui.widgets.chat_message import ChatMessage
 
 class RedirectedStdout:
@@ -68,9 +69,11 @@ class RedirectedStdout:
 
 class StatusBar(Static):
     status_text = reactive("Ready")
+    mode = reactive("PLAN")  # "PLAN" (Read-only analysis / grill-me) or "BUILD" (Write & Edit code)
     
     def render(self):
-        return self.status_text
+        mode_badge = f"[bold green]⚒ BUILD[/bold green]" if self.mode == "BUILD" else f"[bold yellow]🔍 PLAN (Read-Only)[/bold yellow]"
+        return f"{self.status_text} | Mode: {mode_badge} [dim](Press TAB to toggle)[/dim]"
 
 class NexaCommandProvider(Provider):
     """Provides commands for the Nexa Command Palette."""
@@ -120,43 +123,180 @@ class NexaApp(App):
     CSS = """
     Screen {
         layout: vertical;
+        background: #0d1117;
+        overflow: hidden;
+    }
+    Header {
+        dock: top;
+        background: #161b22;
+        color: #58a6ff;
+        text-style: bold;
+    }
+    #main-area {
+        width: 1fr;
+        height: 1fr;
     }
     #transcript {
         width: 1fr;
-        height: 1fr;
-        padding: 1;
-        border: solid $surface;
+        height: 100%;
+        padding: 1 2;
+        background: #0d1117;
+        scrollbar-size: 1 1;
+        scrollbar-color: #30363d #161b22;
     }
     #status-panel {
-        width: 40;
-        height: 1fr;
-        border-left: solid $primary;
-        background: $surface;
+        width: 42;
+        height: 100%;
+        border-left: solid #30363d;
+        background: #161b22;
+        padding: 1;
+        scrollbar-size: 1 1;
+    }
+    #bottom-dock {
+        dock: bottom;
+        height: auto;
+        width: 100%;
+        background: #0d1117;
     }
     Input {
-        dock: bottom;
+        width: 100%;
+        background: #161b22;
+        border: tall #30363d;
+        color: #f0f6fc;
+        padding: 0 1;
+        margin: 0;
+    }
+    Input:focus {
+        border: tall #58a6ff;
+    }
+    #suggestion-box {
+        width: 100%;
+        height: auto;
+        max-height: 10;
+        background: #161b22;
+        border: round #58a6ff;
+        margin: 0;
+        padding: 0;
+        display: none;
+        scrollbar-size: 1 1;
+    }
+    #suggestion-box > .option-list--option-highlighted {
+        background: #1f6feb;
+        color: #ffffff;
+        text-style: bold;
     }
     StatusBar {
-        dock: bottom;
+        width: 100%;
         height: 1;
-        background: $accent;
-        color: $text;
-        content-align: center middle;
+        background: #21262d;
+        color: #8b949e;
+        padding: 0 2;
+        content-align: left middle;
     }
     """
     
     BINDINGS = [
         ("ctrl+c", "quit", "Quit"),
+        ("tab", "toggle_mode", "Toggle Mode"),
         ("ctrl+k", "palette", "Command Palette"),
+        ("ctrl+e", "open_editor", "Open Editor"),
         ("pageup", "scroll_transcript_up", "Scroll Up"),
         ("pagedown", "scroll_transcript_down", "Scroll Down"),
     ]
     
+    def on_key(self, event: events.Key) -> None:
+        if event.key == "tab":
+            # If a modal screen is open (e.g. ApprovalModal, SelectionModal), let Tab navigate modal controls
+            if len(self.screen_stack) > 1:
+                return
+            event.prevent_default()
+            event.stop()
+            self.action_toggle_mode()
+
+    def action_toggle_mode(self):
+        """Toggle between PLAN (Read-Only analysis) and BUILD (Write & Code changes) mode."""
+        curr_mode = Config.get("agent.mode", "PLAN")
+        new_mode = "BUILD" if curr_mode == "PLAN" else "PLAN"
+        Config.set("agent.mode", new_mode)
+        if hasattr(self, "status_bar"):
+            self.status_bar.mode = new_mode
+        self.set_status(f"Mode switched to {new_mode}")
+
     def action_scroll_transcript_up(self):
         self.query_one("#transcript").scroll_up(animate=False)
         
     def action_scroll_transcript_down(self):
         self.query_one("#transcript").scroll_down(animate=False)
+
+    def action_open_editor(self):
+        """Open system external editor (Notepad, VS Code, Nano, Vim, etc.) to compose input."""
+        import tempfile
+        import os
+        import subprocess
+        import shutil
+
+        inp = self.query_one("#prompt-input")
+        initial_text = inp.value or ""
+
+        # Determine editor
+        editor = os.environ.get("VISUAL") or os.environ.get("EDITOR")
+        if not editor:
+            if sys.platform == "win32":
+                # Check for code (VS Code) or notepad
+                if shutil.which("code"):
+                    editor = "code --wait"
+                else:
+                    editor = "notepad.exe"
+            else:
+                for candidate in ["nano", "vim", "vi"]:
+                    if shutil.which(candidate):
+                        editor = candidate
+                        break
+                if not editor:
+                    editor = "nano"
+
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".md", delete=False, mode="w", encoding="utf-8") as tf:
+                tf.write(initial_text)
+                temp_path = tf.name
+
+            # Run external editor
+            import shlex
+            def _run_sub():
+                if sys.platform == "win32":
+                    subprocess.run(f'{editor} "{temp_path}"', shell=True, check=False)
+                else:
+                    if os.path.isfile(editor):
+                        cmd_parts = [editor, temp_path]
+                    else:
+                        cmd_parts = shlex.split(editor) + [temp_path]
+                    subprocess.run(cmd_parts, check=False)
+
+            try:
+                with self.suspend():
+                    _run_sub()
+            except Exception:
+                _run_sub()
+
+            if os.path.exists(temp_path):
+                with open(temp_path, "r", encoding="utf-8") as f:
+                    new_text = f.read()
+                try:
+                    os.remove(temp_path)
+                except Exception:
+                    pass
+
+                new_text = new_text.strip()
+                if new_text:
+                    # Flatten newlines into safe spaces/multiline representation so it shows in text area
+                    # and let the user inspect/edit before pressing Enter to submit
+                    inp.value = new_text.replace("\r\n", " ").replace("\n", " ")
+                    inp.focus()
+                    inp.cursor_position = len(inp.value)
+                    self.set_status("Editor content loaded into input. Press Enter to submit.")
+        except Exception as e:
+            self.print_to_chat(f"[!] Error opening editor: {e}")
+
 
     def __init__(self, command_handler, runtime):
         super().__init__()
@@ -166,15 +306,17 @@ class NexaApp(App):
         
     def compose(self) -> ComposeResult:
         yield Header()
-        with Horizontal():
+        with Horizontal(id="main-area"):
             with VerticalScroll(id="transcript"):
                 # Initial greeting messages
                 pass
             yield self.status_panel
             
-        self.status_bar = StatusBar()
-        yield self.status_bar
-        yield Input(placeholder="Nexa> _", id="prompt-input")
+        with Vertical(id="bottom-dock"):
+            yield OptionList(id="suggestion-box")
+            yield Input(placeholder="Nexa> _", id="prompt-input")
+            self.status_bar = StatusBar()
+            yield self.status_bar
         
     def on_mount(self):
         self.query_one("#prompt-input").focus()
@@ -183,6 +325,8 @@ class NexaApp(App):
         
         provider = Config.get("provider", "mock")
         model = Config.get(f"{provider}.model", "unknown")
+        mode = Config.get("agent.mode", "PLAN")
+        self.status_bar.mode = mode
         self.status_panel.set_info(
             version=NEXA_VERSION,
             project_path=self.runtime.cwd,
@@ -200,7 +344,27 @@ class NexaApp(App):
         
         self.print_to_chat("Welcome to Nexa AI Interactive Shell (TUI).\nType /help for available commands or /exit to quit.", role="ai")
         
+        # Load and render past conversation messages if resuming a session
+        self.load_session_history(self.runtime.session_id)
+        
         self.set_interval(1.0, self.refresh_status_panel)
+
+    def load_session_history(self, session_id: int):
+        """Render past messages from database into the chat transcript."""
+        from nexa.core.ai.memory.core import ChatMemoryManager
+        mem = getattr(self.runtime, "memory", None) or getattr(self.runtime, "memory_manager", None) or ChatMemoryManager()
+        try:
+            past_msgs = mem.load_session_messages(session_id, limit=50)
+            if past_msgs:
+                for m in past_msgs:
+                    role = m.get("role", "user")
+                    content = m.get("content", "")
+                    if role == "user":
+                        self.print_to_chat(content, role="user")
+                    elif role == "assistant":
+                        self.print_to_chat(content, role="ai")
+        except Exception:
+            pass
 
     def refresh_status_panel(self):
         provider = Config.get("provider", "mock")
@@ -239,7 +403,63 @@ class NexaApp(App):
             self.current_ai_msg.append_text(text)
             self.query_one("#transcript").scroll_end(animate=False)
         
+    from nexa.commands.ai.slash_commands import SLASH_METADATA
+    SLASH_COMMANDS_META = [(cmd, desc) for cmd, desc, _ in SLASH_METADATA]
+
+    def on_input_changed(self, event: Input.Changed):
+        val = event.value
+        sbox = self.query_one("#suggestion-box", OptionList)
+        if val.startswith("/"):
+            prefix = val.lower()
+            matching = [
+                (cmd, desc) for cmd, desc in self.SLASH_COMMANDS_META
+                if cmd.lower().startswith(prefix) or prefix == "/" or prefix in cmd.lower()
+            ]
+            if matching:
+                sbox.clear_options()
+                for cmd, desc in matching:
+                    sbox.add_option(Option(f"{cmd} - {desc}", id=cmd))
+                sbox.display = True
+                sbox.highlighted = 0
+            else:
+                sbox.display = False
+        else:
+            sbox.display = False
+
+    def on_option_list_option_selected(self, event: OptionList.OptionSelected):
+        if event.option_list.id == "suggestion-box":
+            cmd = event.option.id
+            sbox = self.query_one("#suggestion-box", OptionList)
+            sbox.display = False
+            inp = self.query_one("#prompt-input", Input)
+            if cmd:
+                needs_args = ["/set-api-key", "/plan", "/facts set", "/facts remove", "/unpin", "/session delete", "/rename", "/models"]
+                needs_modal = ["/select-provider", "/set-model", "/sessions", "/session", "/session list", "/load", "/resume", "/continue"]
+                if cmd in needs_modal:
+                    inp.value = ""
+                    self.handle_palette_result(cmd)
+                elif cmd in needs_args:
+                    inp.value = cmd + " "
+                    inp.focus()
+                    inp.cursor_position = len(inp.value)
+                elif cmd == "/editor":
+                    self.action_open_editor()
+                else:
+                    inp.value = ""
+                    self.handle_palette_result(cmd)
+
     def on_input_submitted(self, event: Input.Submitted):
+        sbox = self.query_one("#suggestion-box", OptionList)
+        if sbox.display and sbox.highlighted is not None and len(sbox.options) > 0 and event.value.strip() == "/":
+            # If user typed just "/" and pressed Enter, pick the highlighted suggestion
+            chosen = sbox.get_option_at_index(sbox.highlighted)
+            sbox.display = False
+            if chosen and chosen.id:
+                event.input.value = ""
+                self.handle_palette_result(chosen.id)
+                return
+        sbox.display = False
+
         cmd = event.value.strip()
         if not cmd:
             return
@@ -251,7 +471,16 @@ class NexaApp(App):
             self.action_palette()
             return
             
-        needs_args_or_modal = ["/select-provider", "/set-model", "/set-api-key", "/load", "/plan", "/facts set", "/facts remove", "/unpin", "/session enter", "/session delete"]
+        # Open external editor if user types /editor
+        if cmd.lower() == "/editor":
+            self.action_open_editor()
+            return
+            
+        needs_args_or_modal = [
+            "/select-provider", "/set-model", "/set-api-key", "/load", "/plan", 
+            "/facts set", "/facts remove", "/unpin", "/session", "/sessions", 
+            "/session list", "/session enter", "/session delete", "/resume", "/continue"
+        ]
         
         # If user types exactly the command without args, trigger the palette handler (which shows modal or prepopulates input)
         if cmd in needs_args_or_modal:
@@ -380,6 +609,12 @@ class NexaApp(App):
             msg = ctx.payload.get("message", "")
             role = ctx.payload.get("role", "ai")
             self.safe_invoke(self.print_to_chat, msg, role)
+            return
+
+        if ctx.event_name == "ToolCalled":
+            tool_name = payload.get("tool_name", "Tool")
+            status = payload.get("status", "running")
+            self.safe_invoke(self.status_panel.add_process, tool_name, status)
             return
 
         if ctx.event_name == "AgentTasksUpdated":
@@ -514,7 +749,21 @@ class NexaApp(App):
                 self.push_screen(GenericSelectionModal(f"Select Model for {provider}", opts), _handle_model)
                 return
 
-            needs_args = ["/set-api-key", "/load", "/plan", "/facts set", "/facts remove", "/unpin", "/session enter", "/session delete"]
+            if cmd in ["/sessions", "/session", "/session list", "/load", "/resume", "/continue"]:
+                from nexa.core.ai.memory.core import ChatMemoryManager
+                mem = getattr(self.runtime, "memory_manager", None) or getattr(self.runtime, "memory", None) or ChatMemoryManager()
+                def _handle_session_choice(result):
+                    if result and isinstance(result, tuple) and len(result) == 2:
+                        action, sid = result
+                        if action == "select":
+                            self.runtime.session_id = sid
+                            self.status_bar.status_text = f"Loaded Session #{sid}"
+                            self.print_to_chat(f"[*] Loaded chat session #{sid}", role="ai")
+                            self.load_session_history(sid)
+                self.push_screen(SessionSelectionModal(mem, self.runtime.cwd, self.runtime.session_id), _handle_session_choice)
+                return
+
+            needs_args = ["/set-api-key", "/plan", "/facts set", "/facts remove", "/unpin", "/session delete", "/rename", "/models"]
             if cmd in needs_args:
                 inp = self.query_one("#prompt-input")
                 inp.value = cmd + " "

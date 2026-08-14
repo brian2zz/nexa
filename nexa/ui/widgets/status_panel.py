@@ -10,28 +10,41 @@ PROVIDER_RATES = {
 class StatusPanel(VerticalScroll):
     DEFAULT_CSS = """
     StatusPanel {
-        background: $surface;
+        background: #161b22;
         padding: 0 1;
     }
     .status-header {
         text-style: bold;
-        color: $accent;
-        padding-bottom: 1;
-        border-bottom: solid $primary;
+        color: #58a6ff;
+        padding: 0 1 1 1;
+        border-bottom: solid #30363d;
+        content-align: center middle;
     }
     .status-section {
         text-style: bold;
-        color: $text;
+        color: #c9d1d9;
         margin-top: 1;
+        margin-bottom: 0;
+        padding: 0 1;
     }
     .status-info {
-        color: $text-muted;
+        color: #8b949e;
+        background: #0d1117;
+        padding: 1;
+        border: solid #21262d;
     }
     .status-todo-done {
-        color: $success;
+        color: #3fb950;
     }
     .status-todo-pending {
-        color: $text;
+        color: #f0f6fc;
+    }
+    #status-process-log {
+        height: 12;
+        background: #0d1117;
+        color: #8b949e;
+        border: solid #21262d;
+        padding: 0 1;
     }
     """
 
@@ -56,13 +69,16 @@ class StatusPanel(VerticalScroll):
     def set_info(self, *, version: str, project_path: str,
                  provider: str, model: str, session_id):
         """Isi blok info."""
-        self.query_one("#status-info", Static).update(
-            f"Version : {version}\n"
-            f"Path    : {project_path}\n"
-            f"Provider: {provider}\n"
-            f"Model   : {model}\n"
-            f"Session : {session_id}"
-        )
+        try:
+            self.query_one("#status-info", Static).update(
+                f"Version : {version}\n"
+                f"Path    : {project_path}\n"
+                f"Provider: {provider}\n"
+                f"Model   : {model}\n"
+                f"Session : {session_id}"
+            )
+        except Exception:
+            pass
 
     def set_provider_rates(self, provider: str):
         self.PROMPT_RATE, self.COMPLETION_RATE = PROVIDER_RATES.get(provider, (0.0, 0.0))
