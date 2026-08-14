@@ -21,6 +21,11 @@ class PipelineBus:
         self._subscribers: List[Tuple[Union[str, Callable[[EventContext], bool]], SubscriberCallable]] = []
         self._executor = ThreadPoolExecutor(max_workers=max_workers)
         self._is_running = True
+        self._history: List[EventContext] = []
+
+    def get_history(self, limit: int = 50) -> List[EventContext]:
+        """Returns the most recent events dispatched through the bus."""
+        return self._history[-limit:]
 
     def register_middleware(self, middleware: Middleware) -> None:
         self._middlewares.append(middleware)
@@ -41,6 +46,11 @@ class PipelineBus:
     def publish(self, context: EventContext) -> None:
         if not self._is_running:
             return
+
+        # Track history (capped at 500 entries)
+        self._history.append(context)
+        if len(self._history) > 500:
+            self._history.pop(0)
 
         # 1. Execute Middleware: before_publish
         try:

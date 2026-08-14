@@ -47,6 +47,22 @@ def test_slash_metadata_integrity():
     assert "/rename" in cmds
     assert "/editor" in cmds
 
+def test_dispatch_integrity():
+    from nexa.commands.ai.slash_commands import SLASH_METADATA, SLASH_DISPATCH, SlashCommandHandler
+    ignored = {
+        "/help", "/status", "/exit", "/commands", "/q", "/quit", "/new", "/clear",
+        "/history", "/load", "/session", "/sessions", "/select-provider", "/set-model",
+        "/set-api-key", "/dir", "/explain", "/plan", "/facts", "/pin", "/pins",
+        "/unpin", "/clearpins", "/details", "/thinking", "/summarize", "/resume",
+        "/continue"
+    }
+    for cmd, _, _ in SLASH_METADATA:
+        if cmd in ignored:
+            continue
+        assert cmd in SLASH_DISPATCH, f"{cmd} ada di help tapi tidak di dispatch!"
+        handler_name, _ = SLASH_DISPATCH[cmd]
+        assert hasattr(SlashCommandHandler, handler_name), f"{cmd} -> handler {handler_name} tidak ada!"
+
 def test_slash_handler_execution(tmp_path):
     runtime = MockRuntime()
     mem = MockMemory()
@@ -54,10 +70,6 @@ def test_slash_handler_execution(tmp_path):
     pins = MockPins()
     handler = SlashCommandHandler(runtime, str(tmp_path), mem, facts, pins, "django")
 
-    # /help
-    assert handler.handle_help("", "") is True
-    # /status
-    assert handler.handle_status("", "") is True
     # /init
     assert handler.handle_init("", "") is True
     assert os.path.exists(tmp_path / "AGENTS.md")
@@ -71,6 +83,11 @@ def test_slash_handler_execution(tmp_path):
     assert handler.handle_context("", "") is True
     # /agents
     assert handler.handle_agents("", "") is True
+    # /timeline, /skills, /variants, /mcps
+    assert handler.handle_timeline("", "") is True
+    assert handler.handle_skills("", "") is True
+    assert handler.handle_variants("", "") is True
+    assert handler.handle_mcps("", "") is True
     # /mode
     assert handler.handle_mode("BUILD", "") is True
     assert handler.handle_mode("PLAN", "") is True
@@ -115,9 +132,14 @@ def test_undo_and_redo_flow(tmp_path):
     # Undo
     assert handler.handle_undo("", "") is True
     assert len(mem.load_session_messages(sid)) == 0
+    assert os.path.exists(tmp_path / ".nexa" / "undo_stack.json")
     
-    # Redo
-    assert handler.handle_redo("", "") is True
+    # New instance simulates closing and reopening shell session
+    new_handler = SlashCommandHandler(runtime, str(tmp_path), mem, facts, pins, "django")
+    assert len(new_handler._redo_stack) == 1
+
+    # Redo on new instance
+    assert new_handler.handle_redo("", "") is True
     msgs = mem.load_session_messages(sid)
     assert len(msgs) == 1
     assert msgs[0]["content"] == "original message"

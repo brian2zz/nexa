@@ -3,7 +3,7 @@ import getpass
 from nexa.config import Config
 from nexa.core.ai.providers.factory import ProviderFactory
 
-from nexa.commands.ai.slash_commands import SLASH_METADATA, SLASH_ALIASES, SlashCommandHandler
+from nexa.commands.ai.slash_commands import SLASH_METADATA, SLASH_ALIASES, SLASH_DISPATCH, SlashCommandHandler
 
 def print_help():
     print("\n=== Nexa AI Interactive Shell - Built-in Commands ===")
@@ -205,41 +205,16 @@ def handle(args):
             clean_cmd = SLASH_ALIASES[first_word] + clean_cmd[len(first_word):]
             first_word = clean_cmd.split()[0].lower()
 
-        # Handle Extended / OpenCode Parity Slash Commands
-        if first_word == "/connect":
-            return slash_handler.handle_connect(clean_cmd[8:].strip(), last_ai_response)
-        elif first_word == "/models":
-            return slash_handler.handle_models(clean_cmd[7:].strip(), last_ai_response)
-        elif first_word == "/init":
-            return slash_handler.handle_init(clean_cmd[5:].strip(), last_ai_response)
-        elif first_word == "/editor":
-            return slash_handler.handle_editor(clean_cmd[7:].strip(), last_ai_response)
-        elif first_word == "/themes":
-            return slash_handler.handle_themes(clean_cmd[7:].strip(), last_ai_response)
-        elif first_word == "/mode":
-            return slash_handler.handle_mode(clean_cmd[5:].strip(), last_ai_response)
-        elif first_word in ["/details", "/thinking"]:
+        # Handle Extended / OpenCode Parity Slash Commands via SLASH_DISPATCH registry
+        entry = SLASH_DISPATCH.get(first_word)
+        if entry:
+            handler_name, prefix_len = entry
+            handler = getattr(slash_handler, handler_name, None)
+            if handler:
+                return handler(clean_cmd[prefix_len:].strip(), last_ai_response)
+
+        if first_word in ["/details", "/thinking"]:
             return slash_handler.handle_details(clean_cmd[len(first_word):].strip(), last_ai_response)
-        elif first_word == "/rename":
-            return slash_handler.handle_rename(clean_cmd[7:].strip(), last_ai_response)
-        elif first_word == "/export":
-            return slash_handler.handle_export(clean_cmd[7:].strip(), last_ai_response)
-        elif first_word == "/copy":
-            return slash_handler.handle_copy(clean_cmd[5:].strip(), last_ai_response)
-        elif first_word == "/compact":
-            return slash_handler.handle_compact(clean_cmd[8:].strip(), last_ai_response)
-        elif first_word == "/share":
-            return slash_handler.handle_share(clean_cmd[6:].strip(), last_ai_response)
-        elif first_word == "/unshare":
-            return slash_handler.handle_unshare(clean_cmd[8:].strip(), last_ai_response)
-        elif first_word == "/context":
-            return slash_handler.handle_context(clean_cmd[8:].strip(), last_ai_response)
-        elif first_word == "/agents":
-            return slash_handler.handle_agents(clean_cmd[7:].strip(), last_ai_response)
-        elif first_word == "/undo":
-            return slash_handler.handle_undo(clean_cmd[5:].strip(), last_ai_response)
-        elif first_word == "/redo":
-            return slash_handler.handle_redo(clean_cmd[5:].strip(), last_ai_response)
         elif first_word in ["/skills", "/variants", "/mcps", "/timeline"]:
             return slash_handler.handle_stub(first_word[1:])
         elif clean_cmd.lower().startswith("/sessions"):

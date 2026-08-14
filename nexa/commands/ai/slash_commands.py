@@ -63,6 +63,29 @@ SLASH_ALIASES = {
     "/continue": "/sessions",
 }
 
+SLASH_DISPATCH = {
+    "/connect":  ("handle_connect",  8),
+    "/models":   ("handle_models",   7),
+    "/init":     ("handle_init",     5),
+    "/editor":   ("handle_editor",   7),
+    "/themes":   ("handle_themes",   7),
+    "/mode":     ("handle_mode",     5),
+    "/rename":   ("handle_rename",   7),
+    "/export":   ("handle_export",   7),
+    "/copy":     ("handle_copy",     5),
+    "/compact":  ("handle_compact",  8),
+    "/share":    ("handle_share",    6),
+    "/unshare":  ("handle_unshare",  8),
+    "/context":  ("handle_context",  8),
+    "/agents":   ("handle_agents",   7),
+    "/undo":     ("handle_undo",     5),
+    "/redo":     ("handle_redo",     5),
+    "/timeline": ("handle_timeline", 9),
+    "/skills":   ("handle_skills",   7),
+    "/variants": ("handle_variants", 9),
+    "/mcps":     ("handle_mcps",     5),
+}
+
 class SlashCommandHandler:
     def __init__(self, runtime, cwd: str, memory_manager, facts_manager, pins_manager, framework: str):
         self.runtime = runtime
@@ -71,68 +94,28 @@ class SlashCommandHandler:
         self.facts = facts_manager
         self.pins = pins_manager
         self.framework = framework
+        self._redo_stack: List[Dict[str, Any]] = []
+        self._undo_file = os.path.join(self.cwd, ".nexa", "undo_stack.json")
+        self._load_redo_stack()
 
-    def handle_help(self, args: str, last_ai_response: str) -> bool:
-        print("\n=== Nexa AI Interactive Shell - Built-in Commands ===")
-        categories = {}
-        for cmd, desc, cat in SLASH_METADATA:
-            categories.setdefault(cat, []).append((cmd, desc))
+    def _load_redo_stack(self):
+        import json
+        try:
+            if os.path.exists(self._undo_file):
+                with open(self._undo_file, "r", encoding="utf-8") as f:
+                    self._redo_stack = json.load(f)
+        except Exception:
+            self._redo_stack = []
 
-        for cat, items in categories.items():
-            print(f"\n[{cat}]")
-            for cmd, desc in items:
-                print(f"  {cmd:<24}: {desc}")
-        print("\nType your prompt directly to talk with AI.\n======================================================\n")
-        return True
+    def _save_redo_stack(self):
+        import json
+        try:
+            os.makedirs(os.path.dirname(self._undo_file), exist_ok=True)
+            with open(self._undo_file, "w", encoding="utf-8") as f:
+                json.dump(self._redo_stack[-20:], f)
+        except Exception:
+            pass
 
-    def handle_status(self, args: str, last_ai_response: str) -> bool:
-        provider = Config.get("provider", "ollama")
-        model = Config.get(f"{provider}.model", "unknown")
-        print("\n=== Nexa AI Status ===")
-        print(f"Provider : {provider}")
-        print(f"Model    : {model}")
-        if provider in ["deepseek", "groq", "gemini"]:
-            api_key = Config.get(f"{provider}.api_key", "")
-            key_status = "SET (Hidden)" if api_key else "NOT SET"
-            print(f"API Key  : {key_status}")
-        elif provider == "ollama":
-            host = Config.get("ollama.host", "http://localhost:11434")
-            print(f"Host     : {host}")
-        print(f"Session  : {self.runtime.session_id}")
-        print(f"Details  : {'ON' if Config.get('ui.details', True) else 'OFF'}")
-        print("======================\n")
-        return True
-
-    def handle_exit(self, args: str, last_ai_response: str) -> bool:
-        print("Exiting Nexa AI Shell.")
-        return False
-
-    def handle_commands(self, args: str, last_ai_response: str) -> bool:
-        print(f"\n=== Available CLI Commands for {self.framework} ===")
-        if "django" in self.framework.lower():
-            print("  nexa run            : Run development server")
-            print("  nexa new            : Create a new Django project")
-            print("  nexa startapp       : Create a new Django app")
-            print("  nexa make:api       : Generate DRF API boilerplate")
-            print("  nexa sync           : Sync models to DB")
-            print("  nexa dev            : Run dev tools")
-            print("  nexa doctor         : Check project health")
-        elif "nexaphp" in self.framework.lower():
-            print("  nexa new            : Create a new NexaPHP project")
-            print("  nexa make:module    : Create a new module")
-            print("  nexa make:model     : Create a new model")
-            print("  nexa make:controller: Create a new controller")
-            print("  nexa run            : Run PHP built-in server")
-        elif "flutter" in self.framework.lower():
-            print("  nexa new            : Create a new Flutter project")
-            print("  nexa create-module  : Create a new feature module")
-            print("  nexa gen-model      : Generate JSON models")
-            print("  nexa run            : Run Flutter app")
-            print("  nexa doctor         : Check Flutter setup")
-        else:
-            print("  nexa create         : Create a new project (AI Scaffolding)")
-            print(f"  (No specific commands detected for {self.framework})")
-        print("=========================================\n")
     def handle_editor(self, args: str, last_ai_response: str) -> bool:
         import tempfile
         import subprocess
@@ -426,6 +409,90 @@ class SlashCommandHandler:
         print("==========================================\n")
         return True
 
+    def handle_timeline(self, args: str, last_ai_response: str) -> bool:
+        bus = getattr(self.runtime, "bus", None)
+        events = bus.get_history(limit=20) if bus and hasattr(bus, "get_history") else []
+        print("\n=== Nexa Pipeline Event Timeline ===")
+        if not events:
+            print("  (No bus events recorded in current session yet)")
+        else:
+            for i, evt in enumerate(events, 1):
+                name = getattr(evt, "event_name", "UnknownEvent")
+                sid = getattr(evt, "session_id", self.runtime.session_id)
+                data = getattr(evt, "data", {})
+                info_summary = ""
+                if isinstance(data, dict):
+                    if "input_tokens" in data:
+                        info_summary = f" [tokens: in={data.get('input_tokens')}, out={data.get('output_tokens')}]"
+                    elif "plan" in data:
+                        info_summary = " [ExecutionPlan ready]"
+                    elif "thought" in data:
+                        info_summary = f" [thought: {data.get('thought', '')[:30]}]"
+                print(f"  {i:>2}. [{name}] (Session #{sid}){info_summary}")
+        print("====================================\n")
+        return True
+
+    def handle_skills(self, args: str, last_ai_response: str) -> bool:
+        skills_dir = os.path.join(self.cwd, "skills")
+        global_skills_dir = os.path.expanduser("~/.gemini/config/skills")
+        print("\n=== Nexa Autonomous Skills Registry ===")
+        found = False
+        for sdir, label in [(skills_dir, "Project Local"), (global_skills_dir, "Global Antigravity")]:
+            if os.path.exists(sdir):
+                items = [d for d in os.listdir(sdir) if os.path.isdir(os.path.join(sdir, d))]
+                if items:
+                    found = True
+                    print(f"[{label} ({sdir})]")
+                    for item in items:
+                        print(f"  - {item}")
+        if not found:
+            print("  (No skills found in ./skills or ~/.gemini/config/skills)")
+            print("  💡 Tip: Create `./skills/<skill_name>/SKILL.md` to define project-specific skills.")
+        print("========================================\n")
+        return True
+
+    def handle_variants(self, args: str, last_ai_response: str) -> bool:
+        provider = Config.get("provider", "mock")
+        model = Config.get(f"{provider}.model", "unknown")
+        print("\n=== Model Variants & Active Configurations ===")
+        print(f"Active Provider: {provider}")
+        print(f"Active Model   : {model}")
+        print("\nKnown Variants:")
+        variants = {
+            "gemini": ["gemini-1.5-pro-latest", "gemini-1.5-flash-latest"],
+            "groq": ["llama3-70b-8192", "mixtral-8x7b-32768", "gemma2-9b-it"],
+            "deepseek": ["deepseek-chat", "deepseek-coder", "deepseek-reasoner"],
+            "ollama": ["qwen2.5-coder", "deepseek-r1:8b", "codellama", "llama3.2"],
+            "mock": ["mock-fast", "mock-reasoning", "mock-large"]
+        }
+        for prov, vlist in variants.items():
+            marker = " [CURRENT]" if prov == provider else ""
+            print(f"  {prov:<10}{marker}: {', '.join(vlist)}")
+        print("==============================================\n")
+        return True
+
+    def handle_mcps(self, args: str, last_ai_response: str) -> bool:
+        mcp_config = os.path.join(self.cwd, "mcp_config.json")
+        print("\n=== Nexa MCP (Model Context Protocol) Tool Servers ===")
+        if os.path.exists(mcp_config):
+            import json
+            try:
+                with open(mcp_config, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                servers = data.get("mcpServers", {})
+                print(f"Configuration file found: {mcp_config}")
+                for sname, sinfo in servers.items():
+                    cmd = sinfo.get("command", "")
+                    print(f"  - {sname}: {cmd}")
+            except Exception as e:
+                print(f"  [!] Failed to parse {mcp_config}: {e}")
+        else:
+            print("  Status: MCP Plugin Engine Ready (Standard Spec v1.0)")
+            print(f"  Config: No active `mcp_config.json` found in {self.cwd}")
+            print("  💡 Tip: Create `mcp_config.json` in your workspace to mount external MCP tool servers.")
+        print("=======================================================\n")
+        return True
+
     def handle_stub(self, feature_name: str) -> bool:
         print(f"[*] /{feature_name} is currently a planned roadmap capability in Nexa Enterprise AI.")
         return True
@@ -448,6 +515,8 @@ class SlashCommandHandler:
             if msg_reverted:
                 print(f"[✓] Removed last message from Session #{self.runtime.session_id}.")
             
+            self._save_redo_stack()
+
             if file_restored:
                 print("[✓] Restored files from previous execution backup.")
             elif not msg_reverted:
@@ -461,6 +530,7 @@ class SlashCommandHandler:
             print("[*] Redo stack is empty: No pending forward rollback states.")
         else:
             item = self._redo_stack.pop()
+            self._save_redo_stack()
             sid = item.get("session_id")
             msg = item.get("message", {})
             if sid and msg:

@@ -94,6 +94,12 @@ class NexaCommandProvider(Provider):
         ("/pins", "Show pinned memory"),
         ("/pin", "Pin last AI response"),
         ("/clearpins", "Clear all pinned memory"),
+        ("/themes", "Switch UI theme"),
+        ("/details", "Toggle detailed reasoning/thought display"),
+        ("/thinking", "Toggle reasoning block visibility"),
+        ("/copy", "Copy last AI response to clipboard"),
+        ("/undo", "Revert last user message"),
+        ("/redo", "Redo last reverted action"),
         ("/exit", "Quit the application"),
     ]
 
@@ -769,6 +775,15 @@ class NexaApp(App):
                         self.status_bar.status_text = "Processing..."
                         self.run_command(f"{cmd} {mod}")
                 self.push_screen(GenericSelectionModal(f"Select Model for {provider}", opts), _handle_model)
+                return
+
+            if cmd == "/themes":
+                theme_opts = [("dark", "Dark (Default)"), ("nord", "Nord"), ("monokai", "Monokai"), ("dracula", "Dracula"), ("solarized", "Solarized")]
+                def _handle_theme(th):
+                    if th:
+                        self.status_bar.status_text = f"Theme set to {th}"
+                        self.run_command(f"/themes {th}")
+                self.push_screen(GenericSelectionModal("Select UI Theme", theme_opts), _handle_theme)
                 return
 
             if cmd in ["/sessions", "/session", "/session list", "/load", "/resume", "/continue"]:
