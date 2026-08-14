@@ -132,6 +132,47 @@ class SlashCommandHandler:
             print("  nexa create         : Create a new project (AI Scaffolding)")
             print(f"  (No specific commands detected for {self.framework})")
         print("=========================================\n")
+    def handle_editor(self, args: str, last_ai_response: str) -> bool:
+        import tempfile
+        import subprocess
+        import shutil
+
+        editor = os.environ.get("VISUAL") or os.environ.get("EDITOR")
+        if not editor:
+            if sys.platform == "win32":
+                editor = "notepad.exe"
+            else:
+                for candidate in ["nano", "vim", "vi"]:
+                    if shutil.which(candidate):
+                        editor = candidate
+                        break
+                if not editor:
+                    editor = "nano"
+
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".md", delete=False, mode="w", encoding="utf-8") as tf:
+                temp_path = tf.name
+
+            if sys.platform == "win32":
+                subprocess.run(f'{editor} "{temp_path}"', shell=True, check=False)
+            else:
+                subprocess.run([editor, temp_path], check=False)
+
+            if os.path.exists(temp_path):
+                with open(temp_path, "r", encoding="utf-8") as f:
+                    content = f.read().strip()
+                try:
+                    os.remove(temp_path)
+                except Exception:
+                    pass
+
+                if content:
+                    self.memory.save_message(self.runtime.session_id, "user", content)
+                    print(f"[*] Prompt from editor saved to Session #{self.runtime.session_id}.")
+                else:
+                    print("[*] Editor content was empty. Cancelled.")
+        except Exception as e:
+            print(f"[!] Error opening editor: {e}")
         return True
 
     def handle_init(self, args: str, last_ai_response: str) -> bool:
@@ -367,6 +408,11 @@ class SlashCommandHandler:
         from nexa.core.pipeline.rollback.backup import BackupRollbackStrategy
         print("[*] Reverting last message & checking file restore points...")
         try:
+            # Snapshot last message for redo
+            last_msg = getattr(self.memory, "get_last_message", lambda sid: None)(self.runtime.session_id)
+            if last_msg:
+                self._redo_stack.append({"session_id": self.runtime.session_id, "message": last_msg})
+
             # 1. Rollback files if backup exists
             strategy = BackupRollbackStrategy(self.cwd)
             file_restored = strategy.rollback()
@@ -389,5 +435,11 @@ class SlashCommandHandler:
             print("[*] Redo stack is empty: No pending forward rollback states.")
         else:
             item = self._redo_stack.pop()
-            print(f"[✓] Reapplied state: {item}")
+            sid = item.get("session_id")
+            msg = item.get("message", {})
+            if sid and msg:
+                self.memory.save_message(sid, msg.get("role", "user"), msg.get("content", ""))
+                print(f"[✓] Restored message ({msg.get('role')}): \"{msg.get('content', '')[:40]}\" to Session #{sid}.")
+            else:
+                print("[*] Reapplied redo state.")
         return True

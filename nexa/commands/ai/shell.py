@@ -212,6 +212,8 @@ def handle(args):
             return slash_handler.handle_models(clean_cmd[7:].strip(), last_ai_response)
         elif first_word == "/init":
             return slash_handler.handle_init(clean_cmd[5:].strip(), last_ai_response)
+        elif first_word == "/editor":
+            return slash_handler.handle_editor(clean_cmd[7:].strip(), last_ai_response)
         elif first_word == "/themes":
             return slash_handler.handle_themes(clean_cmd[7:].strip(), last_ai_response)
         elif first_word == "/mode":

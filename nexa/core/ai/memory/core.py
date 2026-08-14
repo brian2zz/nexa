@@ -135,6 +135,18 @@ class ChatMemoryManager:
             )
             return cursor.fetchall()
             
+    def get_last_message(self, session_id: int) -> dict:
+        """Returns the last message dict in the session."""
+        with self._get_conn() as conn:
+            cursor = conn.execute(
+                "SELECT role, content FROM messages WHERE session_id = ? ORDER BY id DESC LIMIT 1",
+                (session_id,)
+            )
+            row = cursor.fetchone()
+            if row:
+                return {"role": row[0], "content": row[1]}
+        return None
+
     def delete_last_message(self, session_id: int) -> bool:
         """Deletes the last message in the session (useful for /undo)."""
         with self._get_conn() as conn:

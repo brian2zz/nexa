@@ -97,3 +97,52 @@ def test_delete_last_message(tmp_path):
     msgs = mem.load_session_messages(sid)
     assert len(msgs) == 1
     assert msgs[0]["content"] == "msg1"
+
+def test_undo_and_redo_flow(tmp_path):
+    from nexa.core.ai.memory.core import ChatMemoryManager
+    db_path = str(tmp_path / "test_flow.db")
+    mem = ChatMemoryManager(db_path=db_path)
+    sid = mem.create_session(str(tmp_path))
+    mem.save_message(sid, "user", "original message")
+    
+    runtime = MockRuntime()
+    runtime.session_id = sid
+    facts = MockFacts()
+    pins = MockPins()
+    handler = SlashCommandHandler(runtime, str(tmp_path), mem, facts, pins, "django")
+    
+    assert len(mem.load_session_messages(sid)) == 1
+    # Undo
+    assert handler.handle_undo("", "") is True
+    assert len(mem.load_session_messages(sid)) == 0
+    
+    # Redo
+    assert handler.handle_redo("", "") is True
+    msgs = mem.load_session_messages(sid)
+    assert len(msgs) == 1
+    assert msgs[0]["content"] == "original message"
+
+def test_handle_editor(monkeypatch, tmp_path):
+    from nexa.core.ai.memory.core import ChatMemoryManager
+    db_path = str(tmp_path / "test_ed.db")
+    mem = ChatMemoryManager(db_path=db_path)
+    sid = mem.create_session(str(tmp_path))
+    
+    fake_editor = tmp_path / "fake_editor.py"
+    fake_editor.write_text(
+        "import sys\n"
+        "with open(sys.argv[1], 'w', encoding='utf-8') as f:\n"
+        "    f.write('Written by CLI editor')\n"
+    )
+    monkeypatch.setenv("EDITOR", f'"{sys.executable}" "{fake_editor.as_posix()}"')
+    
+    runtime = MockRuntime()
+    runtime.session_id = sid
+    facts = MockFacts()
+    pins = MockPins()
+    handler = SlashCommandHandler(runtime, str(tmp_path), mem, facts, pins, "django")
+    
+    assert handler.handle_editor("", "") is True
+    msgs = mem.load_session_messages(sid)
+    assert len(msgs) == 1
+    assert "Written by CLI editor" in msgs[0]["content"]
