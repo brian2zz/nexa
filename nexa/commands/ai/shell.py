@@ -224,6 +224,8 @@ def handle(args):
             return slash_handler.handle_rename(clean_cmd[7:].strip(), last_ai_response)
         elif first_word == "/export":
             return slash_handler.handle_export(clean_cmd[7:].strip(), last_ai_response)
+        elif first_word == "/copy":
+            return slash_handler.handle_copy(clean_cmd[5:].strip(), last_ai_response)
         elif first_word == "/compact":
             return slash_handler.handle_compact(clean_cmd[8:].strip(), last_ai_response)
         elif first_word == "/share":

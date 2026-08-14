@@ -146,3 +146,18 @@ def test_handle_editor(monkeypatch, tmp_path):
     msgs = mem.load_session_messages(sid)
     assert len(msgs) == 1
     assert "Written by CLI editor" in msgs[0]["content"]
+
+def test_handle_copy(tmp_path):
+    from nexa.core.ai.memory.core import ChatMemoryManager
+    db_path = str(tmp_path / "test_cp.db")
+    mem = ChatMemoryManager(db_path=db_path)
+    sid = mem.create_session(str(tmp_path))
+    mem.save_message(sid, "assistant", "Sample AI generated response")
+    
+    runtime = MockRuntime()
+    runtime.session_id = sid
+    facts = MockFacts()
+    pins = MockPins()
+    handler = SlashCommandHandler(runtime, str(tmp_path), mem, facts, pins, "django")
+    
+    assert handler.handle_copy("", "Sample AI generated response") is True

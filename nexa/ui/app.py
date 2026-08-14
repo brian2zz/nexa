@@ -200,10 +200,32 @@ class NexaApp(App):
         ("tab", "toggle_mode", "Toggle Mode"),
         ("ctrl+k", "palette", "Command Palette"),
         ("ctrl+e", "open_editor", "Open Editor"),
+        ("ctrl+y", "copy_last_response", "Copy Last Response"),
         ("pageup", "scroll_transcript_up", "Scroll Up"),
         ("pagedown", "scroll_transcript_down", "Scroll Down"),
     ]
     
+    def action_copy_last_response(self):
+        """Copies the latest AI message to system clipboard."""
+        import subprocess
+        from nexa.core.ai.memory.core import ChatMemoryManager
+        mem = getattr(self.runtime, "memory", None) or getattr(self.runtime, "memory_manager", None) or ChatMemoryManager()
+        last = mem.get_last_message(self.runtime.session_id)
+        if last and last.get("content"):
+            content = last["content"]
+            try:
+                if sys.platform == "win32":
+                    proc = subprocess.Popen(['clip'], stdin=subprocess.PIPE, shell=True)
+                    proc.communicate(input=content.encode('utf-8'))
+                else:
+                    proc = subprocess.Popen(['xclip', '-selection', 'clipboard'], stdin=subprocess.PIPE)
+                    proc.communicate(input=content.encode('utf-8'))
+                self.set_status(f"Copied {len(content)} chars to clipboard.")
+            except Exception as e:
+                self.set_status(f"Copy failed: {e}")
+        else:
+            self.set_status("Nothing to copy.")
+
     def on_key(self, event: events.Key) -> None:
         if event.key == "tab":
             # If a modal screen is open (e.g. ApprovalModal, SelectionModal), let Tab navigate modal controls

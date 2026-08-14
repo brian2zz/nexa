@@ -37,6 +37,7 @@ SLASH_METADATA: List[Tuple[str, str, str]] = [
     ("/load", "Load a past chat session by ID", "Session"),
     ("/rename", "Rename the current active chat session (/rename <name>)", "Session"),
     ("/export", "Export current chat history to Markdown file", "Session"),
+    ("/copy", "Copy last AI response or code snippet to system clipboard (alias: Ctrl+Y)", "Session"),
     ("/compact", "Summarize and compact current session to save tokens", "Session"),
     ("/share", "Export chat session for sharing (local Markdown)", "Session"),
     ("/unshare", "Info on local export management", "Session"),
@@ -329,6 +330,31 @@ class SlashCommandHandler:
                 f.write(f"### {role}\n\n{content}\n\n---\n\n")
 
         print(f"[✓] Exported {len(messages)} messages to {filepath}")
+        return True
+
+    def handle_copy(self, args: str, last_ai_response: str) -> bool:
+        import subprocess
+        # Get content: from args, or last_ai_response, or last assistant message from DB
+        text_to_copy = args.strip() or last_ai_response or ""
+        if not text_to_copy:
+            last = getattr(self.memory, "get_last_message", lambda sid: None)(self.runtime.session_id)
+            if last:
+                text_to_copy = last.get("content", "")
+
+        if not text_to_copy:
+            print("[!] Nothing to copy (no recent AI response found).")
+            return True
+
+        try:
+            if sys.platform == "win32":
+                proc = subprocess.Popen(['clip'], stdin=subprocess.PIPE, shell=True)
+                proc.communicate(input=text_to_copy.encode('utf-8'))
+            else:
+                proc = subprocess.Popen(['xclip', '-selection', 'clipboard'], stdin=subprocess.PIPE)
+                proc.communicate(input=text_to_copy.encode('utf-8'))
+            print(f"[✓] Copied {len(text_to_copy)} characters to system clipboard.")
+        except Exception as e:
+            print(f"[!] Failed to copy to clipboard: {e}")
         return True
 
     def handle_share(self, args: str, last_ai_response: str) -> bool:
