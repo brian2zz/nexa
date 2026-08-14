@@ -215,8 +215,6 @@ def handle(args):
 
         if first_word in ["/details", "/thinking"]:
             return slash_handler.handle_details(clean_cmd[len(first_word):].strip(), last_ai_response)
-        elif first_word in ["/skills", "/variants", "/mcps", "/timeline"]:
-            return slash_handler.handle_stub(first_word[1:])
         elif clean_cmd.lower().startswith("/sessions"):
             # Normalize /sessions to /session
             clean_cmd = "/session" + clean_cmd[9:]

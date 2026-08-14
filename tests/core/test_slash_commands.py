@@ -181,5 +181,52 @@ def test_handle_copy(tmp_path):
     facts = MockFacts()
     pins = MockPins()
     handler = SlashCommandHandler(runtime, str(tmp_path), mem, facts, pins, "django")
-    
     assert handler.handle_copy("", "Sample AI generated response") is True
+
+class MockEventBus:
+    def __init__(self, events):
+        self._events = events
+    def get_history(self, limit=50):
+        return self._events[-limit:]
+
+def test_handle_timeline(tmp_path):
+    from nexa.core.models.events import EventContext
+    from nexa.core.models.enums import EventPriority
+    evt = EventContext(
+        event_name="TokenUsage",
+        timestamp="2026-08-14T00:00:00",
+        source="UsageTrackingProvider",
+        priority=EventPriority.NORMAL,
+        session_id="1",
+        payload={"prompt_tokens": 120, "completion_tokens": 60}
+    )
+    runtime = MockRuntime()
+    runtime.bus = MockEventBus([evt])
+    handler = SlashCommandHandler(runtime, str(tmp_path), MockMemory(), MockFacts(), MockPins(), "django")
+    assert handler.handle_timeline("", "") is True
+
+def test_handle_skills(tmp_path):
+    skill_dir = tmp_path / "skills" / "demo_skill"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text("# Demo Skill\nInstructions here.")
+    
+    runtime = MockRuntime()
+    handler = SlashCommandHandler(runtime, str(tmp_path), MockMemory(), MockFacts(), MockPins(), "django")
+    assert handler.handle_skills("", "") is True
+
+def test_handle_variants(tmp_path):
+    runtime = MockRuntime()
+    handler = SlashCommandHandler(runtime, str(tmp_path), MockMemory(), MockFacts(), MockPins(), "django")
+    assert handler.handle_variants("", "") is True
+
+def test_handle_mcps(tmp_path):
+    import json
+    mcp_file = tmp_path / "mcp_config.json"
+    mcp_file.write_text(json.dumps({
+        "mcpServers": {
+            "fetch": {"command": "npx -y @modelcontextprotocol/server-fetch"}
+        }
+    }))
+    runtime = MockRuntime()
+    handler = SlashCommandHandler(runtime, str(tmp_path), MockMemory(), MockFacts(), MockPins(), "django")
+    assert handler.handle_mcps("", "") is True

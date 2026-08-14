@@ -368,8 +368,6 @@ class SlashCommandHandler:
         print("======================================\n")
         return True
 
-    _redo_stack: List[Dict[str, Any]] = []
-
     def handle_compact(self, args: str, last_ai_response: str) -> bool:
         messages = self.memory.load_session_messages(self.runtime.session_id, limit=50)
         if len(messages) < 4:
@@ -419,15 +417,17 @@ class SlashCommandHandler:
             for i, evt in enumerate(events, 1):
                 name = getattr(evt, "event_name", "UnknownEvent")
                 sid = getattr(evt, "session_id", self.runtime.session_id)
-                data = getattr(evt, "data", {})
+                data = getattr(evt, "payload", None)
                 info_summary = ""
                 if isinstance(data, dict):
-                    if "input_tokens" in data:
+                    if "prompt_tokens" in data:
+                        info_summary = f" [tokens: in={data.get('prompt_tokens')}, out={data.get('completion_tokens')}]"
+                    elif "input_tokens" in data:
                         info_summary = f" [tokens: in={data.get('input_tokens')}, out={data.get('output_tokens')}]"
                     elif "plan" in data:
                         info_summary = " [ExecutionPlan ready]"
                     elif "thought" in data:
-                        info_summary = f" [thought: {data.get('thought', '')[:30]}]"
+                        info_summary = f" [thought: {str(data.get('thought', ''))[:30]}]"
                 print(f"  {i:>2}. [{name}] (Session #{sid}){info_summary}")
         print("====================================\n")
         return True
@@ -491,10 +491,6 @@ class SlashCommandHandler:
             print(f"  Config: No active `mcp_config.json` found in {self.cwd}")
             print("  💡 Tip: Create `mcp_config.json` in your workspace to mount external MCP tool servers.")
         print("=======================================================\n")
-        return True
-
-    def handle_stub(self, feature_name: str) -> bool:
-        print(f"[*] /{feature_name} is currently a planned roadmap capability in Nexa Enterprise AI.")
         return True
 
     def handle_undo(self, args: str, last_ai_response: str) -> bool:
