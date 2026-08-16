@@ -315,3 +315,39 @@ async def test_session_modal_popup_and_delete():
         # Press Delete -> Deletes highlighted session
         await pilot.press("delete")
         await pilot.pause()
+
+
+@pytest.mark.asyncio
+async def test_theme_applied_on_mount():
+    from nexa.config import Config
+    Config.set("ui.theme", "nord")
+    app = make_app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        assert app.theme == "nord"
+
+    Config.set("ui.theme", "dark")
+    app2 = make_app()
+    async with app2.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        assert app2.theme == "textual-dark"
+
+
+@pytest.mark.asyncio
+async def test_theme_selection_modal_applies_live():
+    from nexa.ui.screens.palette import GenericSelectionModal
+    app = make_app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app.handle_palette_result("/themes")
+        await pilot.pause()
+        assert any(isinstance(s, GenericSelectionModal) for s in app.screen_stack)
+        modal = next(s for s in app.screen_stack if isinstance(s, GenericSelectionModal))
+        # Pick 'nord' option
+        olist = modal.query_one("#selection-list", OptionList)
+        olist.highlighted = 1  # 0 is dark, 1 is nord
+        await pilot.press("enter")
+        await pilot.pause()
+        await pilot.pause()
+        assert app.theme == "nord"
+

@@ -241,7 +241,7 @@ class SlashCommandHandler:
         return True
 
     def handle_themes(self, args: str, last_ai_response: str) -> bool:
-        themes = ["textual-dark", "textual-light", "nord", "monokai", "dracula", "catppuccin"]
+        themes = ["textual-dark", "textual-light", "nord", "monokai", "dracula", "solarized"]
         if args.strip():
             t = args.strip().lower()
             Config.set("ui.theme", t)

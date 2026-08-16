@@ -354,6 +354,8 @@ class NexaApp(App):
         provider = Config.get("provider", "mock")
         model = Config.get(f"{provider}.model", "unknown")
         mode = Config.get("agent.mode", "PLAN")
+        ui_theme = Config.get("ui.theme", "dark")
+        self.theme = "textual-dark" if ui_theme == "dark" else ui_theme
         self.status_bar.mode = mode
         self.status_panel.set_info(
             version=NEXA_VERSION,
@@ -781,6 +783,11 @@ class NexaApp(App):
                 theme_opts = [("dark", "Dark (Default)"), ("nord", "Nord"), ("monokai", "Monokai"), ("dracula", "Dracula"), ("solarized", "Solarized")]
                 def _handle_theme(th):
                     if th:
+                        mapped_theme = "textual-dark" if th == "dark" else th
+                        try:
+                            self.theme = mapped_theme
+                        except Exception:
+                            pass
                         self.status_bar.status_text = f"Theme set to {th}"
                         self.run_command(f"/themes {th}")
                 self.push_screen(GenericSelectionModal("Select UI Theme", theme_opts), _handle_theme)
