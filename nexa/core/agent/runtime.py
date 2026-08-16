@@ -51,6 +51,7 @@ class NexaAgentRuntime:
         from nexa.core.agent.tools.todo import register_todo_tools
         from nexa.core.agent.tools.execution_tools import register_execution_tools
         from nexa.core.agent.tools.web import register_web_tools
+        from nexa.core.ai.mcp.manager import MCPManager
         
         self.tools = ToolRegistry()
         register_knowledge_tools(self.tools, self.cwd)
@@ -58,6 +59,10 @@ class NexaAgentRuntime:
         self.todo_store = register_todo_tools(self.tools, self.cwd, self.bus, self.session_id)
         register_execution_tools(self.tools, self.cwd, bus=self.bus, session_id=self.session_id)
         register_web_tools(self.tools)
+        
+        # Inisialisasi MCP Tools
+        self.mcp_manager = MCPManager(self.cwd)
+        self.mcp_manager.load_and_register(self.tools)
         
         # Inisialisasi TUI Workflow (Sprint 4)
         from nexa.core.agent.workflow.interactive import ApprovalUI
@@ -116,7 +121,8 @@ class NexaAgentRuntime:
                     f"Please analyze why it failed and generate a revised Execution Plan to fix the issue."
                 )
                 
-                from nexa.core.ai.planner import AIPlannerEngine, PlannerContext
+                from nexa.core.ai.agent_loop import AILoopEngine
+                from nexa.core.ai.planner.schema import PlannerContext
                 from nexa.core.utils.spinner import Spinner
                 import datetime
                 from nexa.core.models.enums import EventPriority
@@ -132,9 +138,9 @@ class NexaAgentRuntime:
                     user_goal=recovery_prompt
                 )
                 
-                planner = AIPlannerEngine()
-                with Spinner("Self-Healing: Regenerating Plan..."):
-                    report = planner.plan(planner_context, session_id=self.session_id)
+                engine = AILoopEngine(bus=self.bus)
+                with Spinner("Self-Healing: Regenerating & Repairing Plan..."):
+                    report = engine.run_loop(planner_context, session_id=self.session_id, max_iterations=8)
                     
                 if report.success:
                     GREEN = '\033[92m'
@@ -202,9 +208,10 @@ class NexaAgentRuntime:
                 user_goal=revision_goal
             )
             
-            planner = AIPlannerEngine(bus=self.bus)
+            from nexa.core.ai.agent_loop import AILoopEngine
+            engine = AILoopEngine(bus=self.bus)
             with Spinner("Revising Plan..."):
-                report = planner.plan(planner_context, session_id=self.session_id)
+                report = engine.run_loop(planner_context, session_id=self.session_id, max_iterations=10)
                 
             if report.success:
                 GREEN = '\033[92m'

@@ -3,9 +3,9 @@
     <!-- Top Back Navigation -->
     <header class="page-header">
       <div class="header-left">
-        <router-link :to="{ name: '{{ model_name.lower() }}_list' }" class="btn-back">← Batal & Kembali</router-link>
+        <router-link :to="{ name: '{{ model_name.lower() }}_list' }" class="btn-back">← Back to List</router-link>
         <span class="separator">/</span>
-        <span class="current-module">{{ isEdit ? 'Formulir Edit' : 'Formulir Pembuatan' }} {{ class_name }}</span>
+        <span class="current-module">{{ isEdit ? 'Edit Form' : 'Create Form' }} {{ class_name }}</span>
       </div>
     </header>
 
@@ -16,9 +16,9 @@
           <div class="header-indicator"></div>
           <div class="header-titles">
             <h1 class="form-title">{{ class_name }} Entity Management</h1>
-            <p class="form-subtitle">Zona enkapsulasi pengisian atribut database secara aman</p>
+            <p class="form-subtitle">Form for safe record data management</p>
           </div>
-          <span class="mode-badge">{{ isEdit ? 'Mode Edit' : 'Mode Buat Baru' }}</span>
+          <span class="mode-badge">{{ isEdit ? 'Edit Mode' : 'Create Mode' }}</span>
         </div>
 
         <form @submit.prevent="saveRecord" class="form-body">
@@ -28,7 +28,7 @@
             <div class="form-group">
               <label :for="'field_{{ item.name }}'" class="form-label">
                 <span class="label-text">{{ item.name }}</span>
-                <span class="type-badge" title="Tipe Data Kolom DB">{{ item.type }}</span>
+                <span class="type-badge" title="Database Column Type">{{ item.type }}</span>
               </label>
               
               <!-- Dynamic Field Typing mapped from database meta -->
@@ -39,7 +39,7 @@
                 :id="'field_{{ item.name }}'"
                 class="form-input"
                 :class="{ 'input-checkbox': getInputType('{{ item.type }}') === 'checkbox' }"
-                placeholder="Spesifikasikan nilai {{ item.name }}..."
+                placeholder="Specify {{ item.name }} value..."
                 required
               />
             </div>
@@ -49,13 +49,13 @@
           <footer class="form-actions">
             <button type="submit" class="btn-save" :disabled="isSaving">
               <span class="save-icon">💾</span> 
-              {{ isSaving ? 'Menyimpan Entitas...' : 'Simpan Perubahan Rekaman' }}
+              {{ isSaving ? 'Saving Record...' : 'Save Record' }}
             </button>
             <router-link 
               :to="{ name: '{{ model_name.lower() }}_list' }" 
               class="btn-cancel"
             >
-              Batalkan
+              Cancel
             </router-link>
           </footer>
         </form>

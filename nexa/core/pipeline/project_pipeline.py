@@ -113,15 +113,51 @@ class ProjectPipeline:
         
         from nexa.core.utils.filesystem import write_file
         
-        # 1. Tenant Middleware
+        # 1. Tenant Middleware (Subdomain & Header based)
         tenant_file = os.path.join(middleware_path, 'tenant.py')
         if not os.path.exists(tenant_file):
-            write_file(tenant_file, "class TenantMiddleware:\n    def __init__(self, get_response):\n        self.get_response = get_response\n\n    def __call__(self, request):\n        # Logic to extract tenant from URL\n        return self.get_response(request)\n")
+            tenant_code = (
+                "class TenantMiddleware:\n"
+                "    \"\"\"\n"
+                "    Resolves tenant context from request headers (X-Tenant-ID) or subdomain.\n"
+                "    \"\"\"\n"
+                "    def __init__(self, get_response):\n"
+                "        self.get_response = get_response\n\n"
+                "    def __call__(self, request):\n"
+                "        tenant_id = request.headers.get('X-Tenant-ID')\n"
+                "        if not tenant_id:\n"
+                "            host = request.get_host().split(':')[0]\n"
+                "            parts = host.split('.')\n"
+                "            tenant_id = parts[0] if len(parts) > 2 else 'default'\n"
+                "        request.tenant_id = tenant_id\n"
+                "        response = self.get_response(request)\n"
+                "        response['X-Tenant-ID'] = tenant_id\n"
+                "        return response\n"
+            )
+            write_file(tenant_file, tenant_code)
 
-        # 2. Activity Log Middleware
+        # 2. Activity Log Middleware (Structured access & audit logging)
         activity_file = os.path.join(middleware_path, 'activity.py')
         if not os.path.exists(activity_file):
-            write_file(activity_file, "class ActivityLogMiddleware:\n    def __init__(self, get_response):\n        self.get_response = get_response\n\n    def __call__(self, request):\n        # Logic to log user activity\n        return self.get_response(request)\n")
+            activity_code = (
+                "import logging\n"
+                "import time\n\n"
+                "logger = logging.getLogger('nexa.activity')\n\n"
+                "class ActivityLogMiddleware:\n"
+                "    \"\"\"\n"
+                "    Logs incoming request activity, method, path, user, and execution latency.\n"
+                "    \"\"\"\n"
+                "    def __init__(self, get_response):\n"
+                "        self.get_response = get_response\n\n"
+                "    def __call__(self, request):\n"
+                "        start_time = time.time()\n"
+                "        response = self.get_response(request)\n"
+                "        duration = round((time.time() - start_time) * 1000, 2)\n"
+                "        user = getattr(request, 'user', 'Anonymous')\n"
+                "        logger.info(f\"{request.method} {request.path} | Status: {response.status_code} | User: {user} | {duration}ms\")\n"
+                "        return response\n"
+            )
+            write_file(activity_file, activity_code)
 
         # 3. Generate Frontend entry bridge for home app
         from nexa.core.generators.scaffold.app_scaffolder import AppEntryGenerator

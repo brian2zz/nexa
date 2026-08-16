@@ -435,20 +435,18 @@ class SlashCommandHandler:
         return True
 
     def handle_skills(self, args: str, last_ai_response: str) -> bool:
-        skills_dir = os.path.join(self.cwd, "skills")
-        global_skills_dir = os.path.expanduser("~/.gemini/config/skills")
+        from nexa.core.ai.skills import SkillManager
+        mgr = SkillManager(self.cwd)
+        skills = mgr.load_all_skills()
+        
         print("\n=== Nexa Autonomous Skills Registry ===")
-        found = False
-        for sdir, label in [(skills_dir, "Project Local"), (global_skills_dir, "Global Antigravity")]:
-            if os.path.exists(sdir):
-                items = [d for d in os.listdir(sdir) if os.path.isdir(os.path.join(sdir, d))]
-                if items:
-                    found = True
-                    print(f"[{label} ({sdir})]")
-                    for item in items:
-                        print(f"  - {item}")
-        if not found:
-            print("  (No skills found in ./skills or ~/.gemini/config/skills)")
+        if skills:
+            for s in skills:
+                print(f"  ✨ [{s.scope.upper()}] {s.name}")
+                print(f"     Description: {s.description}")
+                print(f"     Path       : {s.source_path}\n")
+        else:
+            print("  (No active skills found in ./skills or ~/.gemini/config/skills)")
             print("  💡 Tip: Create `./skills/<skill_name>/SKILL.md` to define project-specific skills.")
         print("========================================\n")
         return True
@@ -474,22 +472,19 @@ class SlashCommandHandler:
         return True
 
     def handle_mcps(self, args: str, last_ai_response: str) -> bool:
-        mcp_config = os.path.join(self.cwd, "mcp_config.json")
+        from nexa.core.ai.mcp import MCPManager
+        mgr = MCPManager(self.cwd)
+        status = mgr.get_status()
+
         print("\n=== Nexa MCP (Model Context Protocol) Tool Servers ===")
-        if os.path.exists(mcp_config):
-            import json
-            try:
-                with open(mcp_config, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                servers = data.get("mcpServers", {})
-                print(f"Configuration file found: {mcp_config}")
-                for sname, sinfo in servers.items():
-                    cmd = sinfo.get("command", "")
-                    print(f"  - {sname}: {cmd}")
-            except Exception as e:
-                print(f"  [!] Failed to parse {mcp_config}: {e}")
+        if status["config_exists"]:
+            print(f"Config: {status['config_path']}")
+            print(f"Configured Servers: {status['configured_count']}")
+            for sname, sinfo in status["configured_servers"].items():
+                cmd = sinfo.get("command", "")
+                args_str = " ".join(sinfo.get("args", []))
+                print(f"  - {sname}: {cmd} {args_str}".strip())
         else:
-            print("  Status: MCP Plugin Engine Ready (Standard Spec v1.0)")
             print(f"  Config: No active `mcp_config.json` found in {self.cwd}")
             print("  💡 Tip: Create `mcp_config.json` in your workspace to mount external MCP tool servers.")
         print("=======================================================\n")

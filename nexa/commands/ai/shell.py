@@ -884,6 +884,14 @@ def handle(args):
             agents_txt = load_agents_instructions(cwd)
             if agents_txt:
                 enhanced_sys_prompt += f"\n\nProject AGENTS.md Instructions:\n{agents_txt}"
+            
+            # Autonomous Skills Auto-Injection
+            from nexa.core.ai.skills import SkillManager
+            skill_mgr = SkillManager(cwd)
+            skills_prompt = skill_mgr.format_skills_for_prompt()
+            if skills_prompt:
+                enhanced_sys_prompt += f"\n\n{skills_prompt}"
+
             if facts:
                 facts_str = "\n".join([f"- {k}: {v}" for k, v in facts.items()])
                 enhanced_sys_prompt += f"\n\nProject Facts:\n{facts_str}"

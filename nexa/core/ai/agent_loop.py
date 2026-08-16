@@ -41,6 +41,16 @@ class AILoopEngine:
             except Exception as e:
                 prompt += f"\nProject Instructions (AGENTS.md): Found but could not read ({e})\n"
         
+        # Autonomous Skills Auto-Injection
+        try:
+            from nexa.core.ai.skills import SkillManager
+            skill_mgr = SkillManager(context.project_path)
+            skills_prompt = skill_mgr.format_skills_for_prompt()
+            if skills_prompt:
+                prompt += f"\n{skills_prompt}\n"
+        except Exception:
+            pass
+        
         if context.project_facts:
             prompt += "\nProject Facts:\n"
             for k, v in context.project_facts.items():
