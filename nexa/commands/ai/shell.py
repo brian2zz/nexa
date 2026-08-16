@@ -899,12 +899,12 @@ def handle(args):
             messages.extend(past_messages)
 
             try:
+                from nexa.core.agent.loop import AgentLoop
                 provider = ProviderFactory.create()
                 
                 spinner_msg = f"Thinking ({provider.__class__.__name__})..."
                 if context_texts:
                     file_count = len(context_texts)
-                    # Try to get the main file name from the prompt
                     main_files = [w for w in words if w.startswith('@')]
                     if main_files:
                         main_name = os.path.basename(re.sub(r'[,.!?]$', '', main_files[0].replace('@', '')))
@@ -913,8 +913,8 @@ def handle(args):
                         spinner_msg = f"Analyzing {file_count} contexts via {provider.__class__.__name__}..."
                         
                 with Spinner(spinner_msg):
-                    raw_resp = provider.generate(messages)
-                    content = raw_resp.get("content", "") if isinstance(raw_resp, dict) else str(raw_resp)
+                    loop = AgentLoop(runtime=runtime, system_prompt=enhanced_sys_prompt, provider=provider)
+                    content = loop.run(final_prompt, conversation_history=past_messages)
                 
                 # Save AI response to memory
                 memory_manager.save_message(runtime.session_id, "assistant", content)
