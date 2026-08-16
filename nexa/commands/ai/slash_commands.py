@@ -47,6 +47,7 @@ SLASH_METADATA: List[Tuple[str, str, str]] = [
     ("/clearpins", "Clear all pinned memory entries", "Memory"),
     ("/undo", "Revert last user message and restore previous backup", "Rollback"),
     ("/redo", "Redo last reverted action", "Rollback"),
+    ("/todos", "View or manage project todos (/todos, /todos add <title>, /todos done <id>)", "Project"),
     ("/agents", "Show Nexa agent runtime architecture and configuration", "Advanced"),
     ("/skills", "Show loaded skills (Stub: Antigravity / opencode compatible)", "Advanced"),
     ("/variants", "Manage model variants (Stub: Roadmap feature)", "Advanced"),
@@ -77,6 +78,7 @@ SLASH_DISPATCH = {
     "/share":    ("handle_share",    6),
     "/unshare":  ("handle_unshare",  8),
     "/context":  ("handle_context",  8),
+    "/todos":    ("handle_todos",    6),
     "/agents":   ("handle_agents",   7),
     "/undo":     ("handle_undo",     5),
     "/redo":     ("handle_redo",     5),
@@ -535,3 +537,68 @@ class SlashCommandHandler:
             else:
                 print("[*] Reapplied redo state.")
         return True
+
+    def handle_todos(self, args: str, last_ai_response: str) -> bool:
+        store = getattr(self.runtime, "todo_store", None)
+        if not store:
+            from nexa.core.agent.tools.todo import TodoStore
+            bus = getattr(self.runtime, "bus", None)
+            sid = getattr(self.runtime, "session_id", 0)
+            store = TodoStore(self.cwd, bus=bus, session_id=sid)
+
+        parts = args.strip().split(maxsplit=1) if args.strip() else []
+        action = parts[0].lower() if parts else "list"
+
+        if action == "list":
+            todos = store.list_todos()
+            print("\n=== Project Todo Checklist ===")
+            if not todos:
+                print("  (No active todos in .nexa/todos.json)")
+                print("  💡 Tip: Use `/todos add <title>` to create a new task.")
+            else:
+                for t in todos:
+                    icon = "☑" if t.get("status") == "done" else "☐"
+                    print(f"  {icon} [{t.get('id')}] {t.get('title')} ({t.get('status')})")
+            print("===============================\n")
+            return True
+
+        if action == "add":
+            if len(parts) < 2 or not parts[1].strip():
+                print("Usage: /todos add <task_title>")
+                return True
+            title = parts[1].strip()
+            item = store.add_todo(title)
+            print(f"[✓] Todo #{item['id']} created: '{item['title']}'")
+            return True
+
+        if action in ["done", "complete"]:
+            if len(parts) < 2 or not parts[1].strip().isdigit():
+                print("Usage: /todos done <task_id>")
+                return True
+            tid = int(parts[1].strip())
+            item = store.update_todo(tid, "done")
+            if item:
+                print(f"[✓] Todo #{tid} marked as done.")
+            else:
+                print(f"[!] Todo #{tid} not found.")
+            return True
+
+        if action in ["remove", "rm", "delete"]:
+            if len(parts) < 2 or not parts[1].strip().isdigit():
+                print("Usage: /todos remove <task_id>")
+                return True
+            tid = int(parts[1].strip())
+            if store.remove_todo(tid):
+                print(f"[✓] Todo #{tid} removed.")
+            else:
+                print(f"[!] Todo #{tid} not found.")
+            return True
+
+        if action == "clear":
+            store.clear_todos()
+            print("[✓] All project todos cleared.")
+            return True
+
+        print("Usage: /todos [list | add <title> | done <id> | remove <id> | clear]")
+        return True
+

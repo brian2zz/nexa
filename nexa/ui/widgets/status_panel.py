@@ -77,6 +77,14 @@ class StatusPanel(VerticalScroll):
                 f"Model   : {model}\n"
                 f"Session : {session_id}"
             )
+            # Load and show persistent todos from .nexa/todos.json if available
+            import os, json
+            todo_path = os.path.join(project_path, ".nexa", "todos.json")
+            if os.path.exists(todo_path):
+                with open(todo_path, "r", encoding="utf-8") as f:
+                    stored_todos = json.load(f)
+                if stored_todos:
+                    self.set_agent_tasks(stored_todos)
         except Exception:
             pass
 

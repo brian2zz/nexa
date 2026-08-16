@@ -48,10 +48,12 @@ class NexaAgentRuntime:
         from nexa.core.agent.tools.registry import ToolRegistry
         from nexa.core.agent.tools.knowledge import register_knowledge_tools
         from nexa.core.agent.tools.pipeline import register_pipeline_tools
+        from nexa.core.agent.tools.todo import register_todo_tools
         
         self.tools = ToolRegistry()
         register_knowledge_tools(self.tools, self.cwd)
         register_pipeline_tools(self.tools)
+        self.todo_store = register_todo_tools(self.tools, self.cwd, self.bus, self.session_id)
         
         # Inisialisasi TUI Workflow (Sprint 4)
         from nexa.core.agent.workflow.interactive import ApprovalUI

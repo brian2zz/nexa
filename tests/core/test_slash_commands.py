@@ -240,3 +240,62 @@ def test_load_agents_instructions(tmp_path):
     long_content = "x" * 12000
     agents.write_text(long_content, encoding="utf-8")
     assert len(load_agents_instructions(str(tmp_path))) == 8000
+
+
+def test_todo_store_and_tools(tmp_path):
+    from nexa.core.agent.tools.todo import TodoStore, register_todo_tools
+    from nexa.core.agent.tools.registry import ToolRegistry
+
+    store = TodoStore(str(tmp_path))
+    assert store.list_todos() == []
+
+    item1 = store.add_todo("Write unit tests")
+    assert item1["id"] == 1
+    assert item1["status"] == "pending"
+
+    item2 = store.add_todo("Refactor architecture")
+    assert item2["id"] == 2
+
+    # Update
+    updated = store.update_todo(1, "done")
+    assert updated["status"] == "done"
+
+    # Remove
+    assert store.remove_todo(2) is True
+    assert len(store.list_todos()) == 1
+
+    # Clear
+    store.clear_todos()
+    assert store.list_todos() == []
+
+    # Test Tools Registration
+    registry = ToolRegistry()
+    store2 = register_todo_tools(registry, str(tmp_path))
+    assert "todo_list" in registry._tools
+    assert "todo_add" in registry._tools
+    assert "todo_update" in registry._tools
+
+    res_add = registry.execute("todo_add", {"title": "Verify coverage"})
+    assert "created" in res_add
+    res_list = registry.execute("todo_list", {})
+    assert "Verify coverage" in res_list
+    res_upd = registry.execute("todo_update", {"id": 1, "status": "done"})
+    assert "updated" in res_upd
+
+
+def test_handle_todos(tmp_path):
+    from nexa.core.agent.tools.todo import TodoStore
+    runtime = MockRuntime()
+    runtime.todo_store = TodoStore(str(tmp_path))
+    handler = SlashCommandHandler(runtime, str(tmp_path), MockMemory(), MockFacts(), MockPins(), "django")
+
+    assert handler.handle_todos("", "") is True
+    assert handler.handle_todos("add Setup Database", "") is True
+    assert len(runtime.todo_store.list_todos()) == 1
+
+    assert handler.handle_todos("done 1", "") is True
+    assert runtime.todo_store.list_todos()[0]["status"] == "done"
+
+    assert handler.handle_todos("remove 1", "") is True
+    assert len(runtime.todo_store.list_todos()) == 0
+
