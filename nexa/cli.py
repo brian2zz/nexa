@@ -6,12 +6,29 @@ from nexa import __version__
 from nexa.commands.registry import GROUPS, render_root_help, render_group_help, render_command_help
 
 def detect_project_type() -> str:
-    """Mendeteksi tipe project berdasarkan file yang ada di direktori saat ini."""
+    """Mendeteksi tipe project secara cerdas menggunakan ProjectDetector."""
+    try:
+        from nexa.core.ai.scanner.detector import ProjectDetector
+        detector = ProjectDetector()
+        info = detector.detect('.')
+        fw = info.get('framework', '').lower()
+        lang = info.get('language', '').lower()
+        
+        if 'django' in fw or 'fastapi' in fw:
+            return 'django'
+        if 'flutter' in fw or lang == 'dart':
+            return 'flutter'
+        if 'php' in lang or 'laravel' in fw or 'nexaphp' in fw or 'codeigniter' in fw:
+            return 'php'
+    except Exception:
+        pass
+
+    # Fallback heuristik cepat
     if os.path.exists('manage.py'):
         return 'django'
     if os.path.exists('pubspec.yaml'):
         return 'flutter'
-    if os.path.exists('artisan') or os.path.exists('composer.json'):
+    if os.path.exists('artisan') or os.path.exists('composer.json') or os.path.exists('bin/nexa'):
         return 'php'
     return 'unknown'
 

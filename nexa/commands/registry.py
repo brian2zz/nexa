@@ -10,6 +10,7 @@ GROUPS = {
         {"name": "make:api", "module": "nexa.commands.django.makeapi", "usage": "nexa django make:api", "description": "Generate REST API from models"},
         {"name": "build", "module": "nexa.commands.django.build", "usage": "nexa django build", "description": "Build the Django project"},
         {"name": "install", "module": "nexa.commands.django.install", "usage": "nexa django install", "description": "Install project dependencies"},
+        {"name": "migrate", "module": "nexa.commands.django.migrate", "usage": "nexa django migrate", "description": "Run Django database migrations"},
         {"name": "run", "module": "nexa.commands.django.run", "usage": "nexa django run", "description": "Run Django development server"},
         {"name": "doctor", "module": "nexa.commands.django.doctor", "usage": "nexa django doctor", "description": "Check Django project health"},
         {"name": "inspect", "module": "nexa.commands.django.inspect", "usage": "nexa django inspect", "description": "Inspect project structure"},

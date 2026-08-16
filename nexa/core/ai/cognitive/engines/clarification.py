@@ -1,24 +1,8 @@
-"""
-ClarificationEngine — Tahap 0.5: Clarification Gate
-
-Sebelum pipeline LLM berjalan, engine ini mengevaluasi apakah user_goal cukup
-spesifik untuk dikerjakan dengan aman. Jika tidak, ia mengajukan pertanyaan 
-yang tepat kepada user langsung di terminal.
-
-Tujuan utama: Menggantikan halusinasi dengan dialog.
-
-Alur:
-    user_goal
-        |
-    [ClarificationEngine]
-        |-- CLEAR  -> lanjutkan ke pipeline normal
-        |-- NEEDS_CLARIFICATION -> tanya user, gabungkan jawaban, lanjutkan
-"""
-
 import re
 import json
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from dataclasses import dataclass, field
+from nexa.core.ai.providers.factory import ProviderFactory
 
 
 @dataclass
@@ -37,90 +21,126 @@ class ClarificationResult:
 
 class ClarificationEngine:
     """
-    Mendeteksi ambiguitas dalam user_goal dan mengajukan pertanyaan 
-    yang tepat kepada user secara interaktif di terminal.
+    Mendeteksi ambiguitas dalam user_goal dan HANYA mengajukan pertanyaan
+    jika prompt benar-benar underspecified / ambigu (seperti sistem Antigravity).
+    Jika prompt sudah jelas, terperinci, atau memiliki context teknis yang cukup,
+    engine ini otomatis melewatinya tanpa mengganggu user.
     """
 
-    # --- Rule-based ambiguity patterns ---
-    # Setiap pola memetakan kata kunci ambigu ke pertanyaan yang relevan
-    AMBIGUITY_RULES = [
-        {
-            "pattern": r"\b(button|btn|tombol)\b",
-            "context_negative": r"(btn-[a-z]+|class\s*=|<button)",  # sudah spesifik
-            "key": "button_location",
-            "question": "Tombol yang dimaksud ada di file/halaman mana?",
-            "hint": "modules/fastpos/templates/fastpos/configuration/supplier/index.html"
-        },
-        {
-            "pattern": r"\b(template|halaman|page|view)\b",
-            "context_negative": r"(modules/|templates/|\.html)",   # sudah ada path
-            "key": "template_path",
-            "question": "Path atau nama file template yang ingin diubah?",
-            "hint": "modules/fastpos/templates/fastpos/configuration/supplier/index.html"
-        },
-        {
-            "pattern": r"\b(rubah|ubah|ganti|change|update|modify)\b",
-            "context_negative": r"(dari\s+\w+\s+ke|from\s+\w+\s+to|btn-\w+)",
-            "key": "change_detail",
-            "question": "Apa tepatnya yang ingin diubah? (dari apa ke apa)",
-            "hint": "dari btn-primary ke btn-success, atau dari warna merah ke hijau"
-        },
-        {
-            "pattern": r"\b(warna|color|colour)\b",
-            "context_negative": r"(btn-[a-z]+|#[0-9a-fA-F]{3,6}|rgb\()",
-            "key": "color_target",
-            "question": "Warna apa yang diinginkan? (nama kelas Bootstrap atau kode warna)",
-            "hint": "btn-success, btn-primary, btn-danger, atau #28a745"
-        },
-        {
-            "pattern": r"\b(module|modul|fitur|feature|component|komponen)\b",
-            "context_negative": r"(modules/|nexa/|fastpos|hrm|inventory)",
-            "key": "module_name",
-            "question": "Module atau komponen mana yang dimaksud?",
-            "hint": "fastpos, hrm, inventory, atau nama folder di bawah modules/"
-        },
-    ]
+    def is_prompt_self_contained(self, user_goal: str) -> bool:
+        """
+        Cek apakah prompt sudah cukup detail dan mandiri sehingga TIDAK butuh klarifikasi.
+        """
+        clean = user_goal.strip()
+        words = clean.split()
+        
+        # 1. Prompt panjang/detail (> 25 kata) hampir selalu memiliki spesifikasi cukup
+        if len(words) >= 25:
+            return True
+
+        # 2. Prompt terstruktur (mengandung markdown list, bullet points, headers, atau skema DB)
+        if re.search(r"(###|\d+\.\s+\*\*|(?m)^\s*-\s+|table\s+|schema|column|database)", clean, re.IGNORECASE):
+            return True
+
+        # 3. Prompt yang eksplisit menyebutkan file path / namespace / extension
+        if re.search(r"(\.php|\.py|\.dart|\.js|\.ts|\.json|\.html|\.css|app/|src/|routes/|models/|controllers/)", clean, re.IGNORECASE):
+            return True
+
+        # 4. Prompt pertanyaan investigasi ('dimana', 'bagaimana', 'kenapa', 'cari', 'search', 'find')
+        if re.search(r"\b(dimana|di mana|bagaimana|kenapa|mengapa|cari|search|find|list|show|cek|check|jelaskan|explain)\b", clean, re.IGNORECASE):
+            return True
+
+        return False
 
     def evaluate(self, user_goal: str) -> ClarificationResult:
         """
         Evaluasi apakah user_goal membutuhkan klarifikasi.
-        Returns ClarificationResult.
+        Menganalisis prompt terlebih dahulu sebelum memutuskan bertanya.
         """
+        # Jika prompt sudah jelas & detail, jangan tanya apapun
+        if self.is_prompt_self_contained(user_goal):
+            return ClarificationResult(
+                needs_clarification=False,
+                questions=[],
+                enriched_goal=user_goal
+            )
+
+        # Jika prompt sangat pendek (misal: "bikin tombol", "ubah modul", "tambah fitur"),
+        # tanyakan secara cerdas & kontekstual menggunakan LLM atau rule terarah
         goal_lower = user_goal.lower()
-        questions_needed: List[ClarificationQuestion] = []
-
-        for rule in self.AMBIGUITY_RULES:
-            pattern = rule["pattern"]
-            context_neg = rule.get("context_negative", "")
-
-            # Cek apakah pola ambigu ditemukan
-            if not re.search(pattern, goal_lower, re.IGNORECASE):
-                continue
-
-            # Cek apakah sudah ada konteks yang cukup (negative pattern)
-            if context_neg and re.search(context_neg, user_goal, re.IGNORECASE):
-                continue
-
-            # Tambahkan pertanyaan jika belum ada key yang sama
-            if not any(q.key == rule["key"] for q in questions_needed):
-                questions_needed.append(ClarificationQuestion(
-                    key=rule["key"],
-                    question=rule["question"],
-                    hint=rule.get("hint", "")
-                ))
+        
+        # Coba evaluasi menggunakan LLM cepat jika tersedia
+        try:
+            provider = ProviderFactory.create()
+            prompt = (
+                "You are an intelligent task analyzer for a software CLI agent.\n"
+                "Evaluate if the user's prompt is too vague to be safely executed without knowing the target file, component, or specific requirements.\n\n"
+                f"User Prompt: \"{user_goal}\"\n\n"
+                "If the prompt is clear enough (or an exploration question), respond with JSON:\n"
+                "{\"needs_clarification\": false, \"questions\": []}\n\n"
+                "If it is EXTREMELY vague (e.g., 'ubah tombol', 'bikin modul baru', 'perbaiki error' without any context), formulate at most 1-2 concise, highly relevant questions in the user's language.\n"
+                "JSON format:\n"
+                "{\n"
+                "  \"needs_clarification\": true,\n"
+                "  \"questions\": [\n"
+                "    {\"key\": \"target_scope\", \"question\": \"Pertanyaan singkat dan tepat?\", \"hint\": \"contoh petunjuk relevan\"}\n"
+                "  ]\n"
+                "}\n"
+                "Respond ONLY with raw JSON."
+            )
+            raw = provider.generate([
+                {"role": "system", "content": "You are a concise intent and ambiguity validator. Output strict JSON only."},
+                {"role": "user", "content": prompt}
+            ])
+            content = (raw.get("content", "") if isinstance(raw, dict) else str(raw)).strip()
+            # Clean markdown formatting if present
+            if content.startswith("```"):
+                content = re.sub(r"^```[a-zA-Z]*\n?", "", content)
+                content = re.sub(r"\n?```$", "", content)
+            
+            data = json.loads(content)
+            if not data.get("needs_clarification"):
+                return ClarificationResult(needs_clarification=False, questions=[], enriched_goal=user_goal)
+            
+            questions = [
+                ClarificationQuestion(
+                    key=q.get("key", f"clarification_{i}"),
+                    question=q.get("question", ""),
+                    hint=q.get("hint", "")
+                )
+                for i, q in enumerate(data.get("questions", []))
+                if q.get("question")
+            ]
+            return ClarificationResult(
+                needs_clarification=len(questions) > 0,
+                questions=questions,
+                enriched_goal=user_goal
+            )
+        except Exception:
+            # Fallback jika offline/LLM error: hanya tanya jika prompt < 6 kata dan ambigu
+            words = goal_lower.split()
+            if len(words) <= 5 and any(w in goal_lower for w in ["ubah", "ganti", "edit", "tombol", "warna"]):
+                return ClarificationResult(
+                    needs_clarification=True,
+                    questions=[
+                        ClarificationQuestion(
+                            key="target_scope",
+                            question="Komponen atau bagian file mana yang ingin diubah?",
+                            hint="Sebutkan nama file atau deskripsi bagian yang ingin dimodifikasi"
+                        )
+                    ],
+                    enriched_goal=user_goal
+                )
 
         return ClarificationResult(
-            needs_clarification=len(questions_needed) > 0,
-            questions=questions_needed,
+            needs_clarification=False,
+            questions=[],
             enriched_goal=user_goal
         )
 
     def ask_user(self, user_goal: str) -> str:
         """
-        Alur utama: evaluasi, tanya jika perlu, kembalikan goal yang diperkaya.
-        Dipanggil dari shell.py sebelum pipeline dijalankan.
-        
-        Returns enriched user_goal (string gabungan goal asli + jawaban user).
+        Alur interaktif CLI: jika butuh klarifikasi, tampilkan pertanyaan yang relevan.
         """
         result = self.evaluate(user_goal)
 
@@ -133,24 +153,23 @@ class ClarificationEngine:
         RESET  = '\033[0m'
         BOLD   = '\033[1m'
 
-        print(f"\n{YELLOW}╔══ Nexa membutuhkan klarifikasi ══╗{RESET}")
-        print(f"{YELLOW}║{RESET} Saya menemukan beberapa informasi yang perlu diperjelas")
-        print(f"{YELLOW}║{RESET} agar tidak salah mengeksekusi perintah Anda.")
-        print(f"{YELLOW}╚{'═' * 35}╝{RESET}\n")
+        print(f"\n{YELLOW}╔══ Nexa membutuhkan sedikit klarifikasi ══╗{RESET}")
+        print(f"{YELLOW}║{RESET} Untuk memastikan eksekusi sesuai yang Anda inginkan:")
+        print(f"{YELLOW}╚{'═' * 42}╝{RESET}\n")
 
         answers = {}
         for i, q in enumerate(result.questions, 1):
             print(f"{BOLD}[{i}/{len(result.questions)}] {q.question}{RESET}")
             if q.hint:
-                print(f"     {CYAN}Contoh: {q.hint}{RESET}")
+                print(f"     {CYAN}Petunjuk: {q.hint}{RESET}")
             answer = input("     > ").strip()
             if answer:
                 answers[q.key] = answer
             print()
 
         if not answers:
-            # User melewatkan semua pertanyaan (tekan Enter saja)
-            print(f"{YELLOW}[*] Melanjutkan dengan informasi yang tersedia...{RESET}\n")
+            # User melewatkan pertanyaan (tekan Enter saja)
+            print(f"{YELLOW}[*] Melanjutkan dengan analisis mandiri...{RESET}\n")
             return user_goal
 
         # Gabungkan jawaban ke dalam goal yang diperkaya
@@ -164,5 +183,6 @@ class ClarificationEngine:
             + "\n".join(f"- {p}" for p in enrichment_parts)
         )
 
-        print(f"{CYAN}[*] Goal diperkaya dengan klarifikasi Anda. Melanjutkan pipeline...{RESET}\n")
+        print(f"{CYAN}[*] Menerapkan klarifikasi Anda. Melanjutkan ke rencana eksekusi...{RESET}\n")
         return enriched
+
