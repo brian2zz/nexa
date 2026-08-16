@@ -52,13 +52,35 @@ class NexaAgentRuntime:
         
         self.tools = ToolRegistry()
         register_knowledge_tools(self.tools, self.cwd)
-        register_pipeline_tools(self.tools)
+        register_pipeline_tools(self.tools, bus=self.bus, session_id_fn=lambda: self.session_id)
         self.todo_store = register_todo_tools(self.tools, self.cwd, self.bus, self.session_id)
         
         # Inisialisasi TUI Workflow (Sprint 4)
         from nexa.core.agent.workflow.interactive import ApprovalUI
         self.approval_ui = ApprovalUI(self.bus)
         self.bus.subscribe("BeforeApproval", self.approval_ui.handle_before_approval)
+        
+        def handle_execution_plan_submitted(context):
+            """
+            Dipicu ketika LLM memanggil submit_execution_plan.
+            Meneruskan ExecutionPlan ke BeforeApproval untuk konfirmasi user.
+            """
+            import datetime
+            from nexa.core.models.enums import EventPriority
+            from nexa.core.events.bus import EventContext
+
+            plan = context.payload.get("plan", {})
+            files = context.payload.get("files", [])
+            self.bus.publish(EventContext(
+                event_name="BeforeApproval",
+                timestamp=datetime.datetime.now().isoformat(),
+                source="ExecutionPlanSubmitted",
+                priority=EventPriority.HIGH,
+                session_id=context.session_id,
+                payload={"plan": plan, "files": files}
+            ))
+
+        self.bus.subscribe("ExecutionPlanSubmitted", handle_execution_plan_submitted)
         
         def handle_approval_granted(context):
             if context.payload.get("tool_approval", False):

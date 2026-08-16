@@ -99,5 +99,27 @@ class TestPipelineBus(unittest.TestCase):
         self.assertEqual(len(received), 1)
         self.assertEqual(received[0], "E2")
 
+    def test_submit_execution_plan_publishes_event(self):
+        from nexa.core.agent.tools.pipeline import submit_execution_plan, register_pipeline_tools
+        from nexa.core.agent.tools.registry import ToolRegistry
+
+        registry = ToolRegistry()
+        register_pipeline_tools(registry, bus=self.bus, session_id_fn=lambda: "test-sess-99")
+
+        received = []
+        self.bus.subscribe("ExecutionPlanSubmitted", lambda ctx: received.append(ctx))
+
+        # Invalid plan - missing files
+        res_err = registry.execute("submit_execution_plan", {"plan_json": '{"objective": "test"}'})
+        self.assertIn("Error", res_err)
+        self.assertEqual(len(received), 0)
+
+        # Valid plan
+        res_ok = registry.execute("submit_execution_plan", {"plan_json": '{"files": [{"path": "a.py"}]}'})
+        self.assertIn("SUCCESS", res_ok)
+        self.assertEqual(len(received), 1)
+        self.assertEqual(received[0].session_id, "test-sess-99")
+        self.assertEqual(received[0].payload["files"], [{"path": "a.py"}])
+
 if __name__ == '__main__':
     unittest.main()
