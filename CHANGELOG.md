@@ -11,10 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Slash dispatch registry (`SLASH_DISPATCH`) as single source of truth + dispatch integrity test
 - Live UI theme application (on_mount + /themes modal) with `dark` → `textual-dark` mapping
 - AGENTS.md scaffolding via /init and AGENTS.md instructions injection into system prompt
+- Todo store (`.nexa/todos.json`) + agent todo tools (`todo_list`/`todo_add`/`todo_update`) + `/todos` handler + TUI sync
+- Real `submit_execution_plan` tool publishing `ExecutionPlanSubmitted` → `BeforeApproval` → `ApprovalGranted` → `ExecutionTransaction`
+- Iterative `AgentLoop` (chat path) and `AILoopEngine` (plan path) with tool-call loop, max-iteration guard, and PLAN/BUILD tool filtering
+- Execution tools wired into the chat runtime: `run_bash_command`, `write_file`, `edit_file_content`, `list_directory`, `manage_tasks`
+- Read-only web tools `web_fetch` and `web_search` (stdlib only, no API key)
 ### Changed
 - Refactored `command_handler` to registry-based dispatch (no more if/elif chains)
 - Redo stack persisted to `.nexa/undo_stack.json` (bounded to 20 items)
 - `/timeline` now reads `EventContext.payload` with correct token keys
+- `NexaAgentRuntime` now registers execution + web tools on startup
 ### Fixed
 - /editor now dispatches to external editor handler (was dead mapping)
 - /redo restores messages (undo now pushes a snapshot to the redo stack)
