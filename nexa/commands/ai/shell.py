@@ -5,6 +5,18 @@ from nexa.core.ai.providers.factory import ProviderFactory
 
 from nexa.commands.ai.slash_commands import SLASH_METADATA, SLASH_ALIASES, SLASH_DISPATCH, SlashCommandHandler
 
+def load_agents_instructions(cwd: str, max_chars: int = 8000) -> str:
+    """Read the project's AGENTS.md file to inject into the system prompt."""
+    import os
+    path = os.path.join(cwd, "AGENTS.md")
+    if os.path.exists(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return f.read()[:max_chars]
+        except Exception:
+            return ""
+    return ""
+
 def print_help():
     print("\n=== Nexa AI Interactive Shell - Built-in Commands ===")
     categories = {}
@@ -869,6 +881,9 @@ def handle(args):
             pins = pins_manager.get_all(cwd)
             
             enhanced_sys_prompt = system_base_prompt
+            agents_txt = load_agents_instructions(cwd)
+            if agents_txt:
+                enhanced_sys_prompt += f"\n\nProject AGENTS.md Instructions:\n{agents_txt}"
             if facts:
                 facts_str = "\n".join([f"- {k}: {v}" for k, v in facts.items()])
                 enhanced_sys_prompt += f"\n\nProject Facts:\n{facts_str}"

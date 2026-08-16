@@ -132,7 +132,7 @@ Nexa CLI memisahkan ekosistem perintah secara rapi di bawah kendali `django` dan
 
 | Perintah | Fungsi / Peran |
 | :--- | :--- |
-| `nexa ai shell` | Membuka *interactive shell* AI. |
+| `nexa ai shell` | Membuka *interactive shell* AI (TUI / CLI). |
 | `nexa ai scan` | Memindai dan membuat indeks repositori proyek. |
 | `nexa ai tree` | Menampilkan struktur arsitektur direktori. |
 | `nexa ai analyze` | Menganalisis *tech-debt* dan arsitektur kode. |
@@ -140,6 +140,19 @@ Nexa CLI memisahkan ekosistem perintah secara rapi di bawah kendali `django` dan
 | `nexa ai create [desc]` | Agen otonom untuk *scaffolding* fitur. |
 | `nexa ai explain` | Menjelaskan *source code* secara komprehensif. |
 | `nexa ai ask [question]`| Mengajukan pertanyaan ke agen AI. |
+
+#### ⚡ Slash Commands di Interactive Shell (OpenCode Parity)
+Di dalam `nexa ai shell`, Anda dapat menggunakan berbagai *slash commands*:
+
+| Kategori | Perintah |
+| :--- | :--- |
+| **General** | `/help`, `/status`, `/commands`, `/editor`, `/exit` |
+| **Project & Context** | `/init`, `/plan`, `/facts`, `/context` |
+| **Provider & Config** | `/connect`, `/select-provider`, `/models`, `/set-model`, `/set-api-key`, `/mode`, `/themes`, `/details`, `/thinking` |
+| **Session** | `/new`, `/clear`, `/history`, `/sessions`, `/load`, `/rename`, `/export`, `/copy`, `/compact`, `/share`, `/unshare` |
+| **Memory** | `/pin`, `/pins`, `/unpin`, `/clearpins` |
+| **Rollback & State**| `/undo`, `/redo` |
+| **Advanced** | `/agents`, `/skills`, `/variants`, `/mcps`, `/timeline` |
 
 ### 🛠️ Perintah Utilitas Global
 

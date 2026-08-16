@@ -2,6 +2,7 @@ import pytest
 import os
 import sys
 from nexa.commands.ai.slash_commands import SLASH_METADATA, SLASH_ALIASES, SlashCommandHandler
+from nexa.commands.ai.shell import load_agents_instructions
 from nexa.core.events.bus import PipelineBus
 
 class MockRuntime:
@@ -230,3 +231,12 @@ def test_handle_mcps(tmp_path):
     runtime = MockRuntime()
     handler = SlashCommandHandler(runtime, str(tmp_path), MockMemory(), MockFacts(), MockPins(), "django")
     assert handler.handle_mcps("", "") is True
+
+def test_load_agents_instructions(tmp_path):
+    assert load_agents_instructions(str(tmp_path)) == ""
+    agents = tmp_path / "AGENTS.md"
+    agents.write_text("# Rules\nAlways lint before push.", encoding="utf-8")
+    assert load_agents_instructions(str(tmp_path)) == "# Rules\nAlways lint before push."
+    long_content = "x" * 12000
+    agents.write_text(long_content, encoding="utf-8")
+    assert len(load_agents_instructions(str(tmp_path))) == 8000
