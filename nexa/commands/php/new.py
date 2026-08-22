@@ -136,6 +136,12 @@ export default defineConfig({
       '/api': 'http://127.0.0.1:8000',
       '/nexa-admin/api': 'http://127.0.0.1:8000'
     }
+  },
+  build: {
+    outDir: 'public/dist',
+    rollupOptions: {
+      input: 'resources/js/app.js'
+    }
   }
 })'''
         # index.html
@@ -222,6 +228,12 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': 'http://localhost:8000'
+    }
+  },
+  build: {
+    outDir: 'public/dist',
+    rollupOptions: {
+      input: 'resources/js/app.jsx'
     }
   }
 })'''

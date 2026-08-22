@@ -14,14 +14,24 @@ class TerminalRunner:
         start_time = time.time()
         
         try:
+            import sys
+            import shutil
+
+            cmd_args = list(req.args)
+            if cmd_args and cmd_args[0] == "nexa":
+                # Execute internal nexa module directly using the active Python interpreter
+                cmd_args = [sys.executable, "-m", "nexa"] + cmd_args[1:]
+            elif cmd_args and sys.platform == "win32":
+                resolved_exe = shutil.which(cmd_args[0])
+                if resolved_exe:
+                    cmd_args[0] = resolved_exe
+
             # We strictly pass args as a list. shell=False is the default and mandated.
-            # Since the parser ensures req.args is a full list containing the executable as the first element,
-            # we just pass req.args as the first argument.
             result = subprocess.run(
-                req.args,
+                cmd_args,
                 shell=False,
-                cwd=req.cwd,
-                env=req.env,
+                cwd=req.cwd or None,
+                env=req.env or None,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,

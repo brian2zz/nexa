@@ -8,6 +8,10 @@ class CommandPaletteModal(ModalScreen[str]):
     Modal screen for quick command selection (Ctrl+K).
     Returns the selected command string.
     """
+
+    BINDINGS = [
+        ("escape", "cancel", "Cancel"),
+    ]
     
     CSS = """
     CommandPaletteModal {
@@ -30,6 +34,15 @@ class CommandPaletteModal(ModalScreen[str]):
             Option(f"{cmd} - {desc}", id=cmd) for cmd, desc, _ in SLASH_METADATA
         ]
         yield OptionList(*options, id="palette-list")
+
+    def on_key(self, event) -> None:
+        if event.key == "escape":
+            event.prevent_default()
+            event.stop()
+            self.dismiss(None)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
         
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         cmd = event.option.id
@@ -38,6 +51,10 @@ class CommandPaletteModal(ModalScreen[str]):
 
 class GenericSelectionModal(ModalScreen[str]):
     """Generic modal screen to present a list of options."""
+
+    BINDINGS = [
+        ("escape", "cancel", "Cancel"),
+    ]
     
     CSS = """
     GenericSelectionModal {
@@ -72,6 +89,15 @@ class GenericSelectionModal(ModalScreen[str]):
         yield Label(self.title_text, id="selection-title")
         opts = [Option(desc, id=val) for val, desc in self.options_data]
         yield OptionList(*opts, id="selection-list")
+
+    def on_key(self, event) -> None:
+        if event.key == "escape":
+            event.prevent_default()
+            event.stop()
+            self.dismiss(None)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
         
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         val = event.option.id
@@ -167,18 +193,31 @@ class SessionSelectionModal(ModalScreen[tuple]):
 class InputModal(ModalScreen[str]):
     """Modal screen for text input (e.g. API keys)."""
     
+    BINDINGS = [
+        ("escape", "cancel", "Cancel"),
+    ]
+
     CSS = """
     InputModal {
         align: center middle;
-        background: $background 80%;
+        background: rgba(13, 17, 23, 0.85);
     }
     
     #input-container {
-        width: 50%;
+        width: 60%;
         height: auto;
         padding: 1 2;
-        border: thick $primary;
-        background: $surface;
+        border: thick #58a6ff;
+        background: #161b22;
+    }
+    #modal-input-title {
+        color: #58a6ff;
+        text-style: bold;
+        padding-bottom: 0;
+    }
+    #modal-input-hint {
+        color: #8b949e;
+        padding-bottom: 1;
     }
     """
     
@@ -191,16 +230,25 @@ class InputModal(ModalScreen[str]):
         from textual.containers import Vertical
         from textual.widgets import Label, Input
         with Vertical(id="input-container"):
-            yield Label(self.title_text)
+            yield Label(self.title_text, id="modal-input-title")
+            yield Label("[Enter] Submit  •  [ESC] Cancel / Close", id="modal-input-hint")
             yield Input(password=self.is_password, id="modal-input")
             
     def on_mount(self):
         self.query_one("#modal-input").focus()
+
+    def on_key(self, event) -> None:
+        if event.key == "escape":
+            event.prevent_default()
+            event.stop()
+            self.dismiss(None)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
         
     def on_input_submitted(self, event) -> None:
         val = event.value.strip()
         if val:
             self.dismiss(val)
         else:
-            self.dismiss("")
-
+            self.dismiss(None)

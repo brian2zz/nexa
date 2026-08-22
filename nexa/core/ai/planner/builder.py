@@ -7,6 +7,7 @@ class PipelineBuilder:
     def build(self, result: PlanningResult) -> ExecutionPlan:
         # Map WorkItems to ExecutionStages/Intents
         stages = []
+        import os
         
         # 1. Preparation Stage (if needed based on constraints)
         prep_intents = []
@@ -20,15 +21,42 @@ class PipelineBuilder:
         if prep_intents:
             stages.append(ExecutionStageNode(name="Preparation", intents=prep_intents))
             
+        # Extract YAML schema from summary if present
+        yaml_content = ""
+        if result.summary and "```yaml" in result.summary:
+            try:
+                parts = result.summary.split("```yaml")
+                if len(parts) > 1:
+                    yaml_content = parts[1].split("```")[0].strip()
+            except Exception:
+                pass
+
         # 2. Transformation Stage
         transform_intents = []
+        commands_to_run = []
+
         for work in result.work_items:
+            work_text = (work.title + " " + work.description + " " + work.objective).lower()
+            if "nexa php generate" in work_text or "generate" in work_text:
+                commands_to_run.append("nexa php generate nexa.yaml")
+            if "makemigrations" in work_text or "migrate" in work_text:
+                commands_to_run.append("php bin/nexa migrate")
+
             for file_path in work.affected_files:
+                # If it's a directory (e.g. app/, database/, routes/), skip file transformation
+                if file_path.endswith("/") or file_path.strip() in ["app", "apps", "database", "routes"]:
+                    continue
+
+                abs_f = file_path if os.path.isabs(file_path) else os.path.join(".", file_path)
+                file_action = "MODIFY" if os.path.exists(abs_f) else "CREATE"
+
+                params = {"target": file_path}
+                if file_path.endswith("nexa.yaml") and yaml_content:
+                    params["content"] = yaml_content
+
                 transform_intents.append(IntentNode(
-                    action="MODIFY",
-                    parameters={
-                        "target": file_path
-                    },
+                    action=file_action,
+                    parameters=params,
                     description=f"Task: {work.title}\nObjective: {work.objective}\nDetails: {work.description}"
                 ))
             
@@ -45,6 +73,13 @@ class PipelineBuilder:
                         "target": cmd
                     },
                     description=f"Execute terminal command: {cmd}"
+                ))
+        for cmd in commands_to_run:
+            if not any(ci.parameters.get("target") == cmd for ci in command_intents):
+                command_intents.append(IntentNode(
+                    action="COMMAND",
+                    parameters={"target": cmd},
+                    description=f"Execute scaffolding command: {cmd}"
                 ))
                 
         if command_intents:

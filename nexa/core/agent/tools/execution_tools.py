@@ -156,3 +156,27 @@ def register_execution_tools(registry: ToolRegistry, workspace_path: str, bus=No
         },
         metadata=ToolMetadata(name="manage_tasks", cost=5, latency="low", category="management", read_only=False, capabilities=["tasks"], priority=50)
     )
+
+    # 6. delete_file
+    registry.register(
+        name="delete_file",
+        func=fs.delete_file,
+        schema={
+            "type": "function",
+            "function": {
+                "name": "delete_file",
+                "description": "Delete a temporary scratch script, query file, or cleanup target from workspace.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "filepath": {
+                            "type": "string",
+                            "description": "The relative path of the file or directory to delete."
+                        }
+                    },
+                    "required": ["filepath"]
+                }
+            }
+        },
+        metadata=ToolMetadata(name="delete_file", cost=20, latency="low", category="filesystem", read_only=False, capabilities=["filesystem", "delete"], priority=70)
+    )

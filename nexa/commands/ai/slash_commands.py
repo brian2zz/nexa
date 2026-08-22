@@ -62,9 +62,20 @@ SLASH_ALIASES = {
     "/summarize": "/compact",
     "/resume": "/sessions",
     "/continue": "/sessions",
+    "/session": "/sessions",
+    "/model": "/models",
+    "/set-model": "/models",
+    "/key": "/set-api-key",
+    "/apikey": "/set-api-key",
+    "/provider": "/select-provider",
+    "/h": "/help",
+    "/cmd": "/commands",
+    "/cmds": "/commands",
 }
 
 SLASH_DISPATCH = {
+    "/help":     ("handle_help",     5),
+    "/commands": ("handle_commands", 9),
     "/connect":  ("handle_connect",  8),
     "/models":   ("handle_models",   7),
     "/init":     ("handle_init",     5),
@@ -209,8 +220,7 @@ class SlashCommandHandler:
         if prov in ["ollama", "deepseek", "groq", "gemini", "mock"]:
             Config.set("provider", prov)
             if prov in ["deepseek", "groq", "gemini"]:
-                import getpass
-                key = getpass.getpass(f"Enter API Key for {prov} (leave empty to keep current): ").strip()
+                key = input(f"Enter API Key for {prov} (leave empty to keep current): ").strip()
                 if key:
                     Config.set(f"{prov}.api_key", key)
             print(f"[✓] Successfully connected to {prov}.")
@@ -595,5 +605,48 @@ class SlashCommandHandler:
             return True
 
         print("Usage: /todos [list | add <title> | done <id> | remove <id> | clear]")
+        return True
+
+    def handle_help(self, args: str, last_ai_response: str) -> bool:
+        print("\n========================= 🌟 NEXA CLI & AI COMMAND DIRECTORY =========================")
+        print("💡 Tip: Tekan Ctrl+K untuk membuka Command Palette, atau ketik salah satu perintah di bawah ini:\n")
+        
+        categories = {}
+        for cmd, desc, cat in SLASH_METADATA:
+            categories.setdefault(cat, []).append((cmd, desc))
+            
+        for cat, items in categories.items():
+            print(f"📁 [{cat.upper()} COMMANDS]")
+            for cmd, desc in items:
+                print(f"  {cmd.ljust(18)} : {desc}")
+            print()
+            
+        print("🛠️ [NEXA FRAMEWORK CLI COMMANDS]")
+        print("  nexa php new <app>       : Buat proyek baru NexaPHP (--frontend=vue / react)")
+        print("  nexa php generate        : Scaffold MVC Models, Controllers, Views dari nexa.yaml")
+        print("  nexa php make:module     : Buat modul baru di apps/<name>/")
+        print("  nexa php make:model      : Buat entitas model Doctrine ORM baru")
+        print("  nexa php run             : Jalankan server lokal di http://127.0.0.1:8000")
+        print("  php bin/nexa migrate     : Eksekusi migrasi database SQLite / MySQL")
+        print("  nexa flutter new <app>   : Inisialisasi proyek Flutter")
+        print("  nexa django new <app>    : Inisialisasi proyek Django Enterprise")
+        print("\n⌨️ [KEYBOARD SHORTCUTS]")
+        print("  Ctrl + K                 : Command Palette (Pencarian Cepat)")
+        print("  Tab                      : Ganti Mode (PLAN / BUILD)")
+        print("  Ctrl + V / Right-Click   : Paste Clipboard")
+        print("  Ctrl + Y                 : Copy AI Response Terakhir")
+        print("  ESC                      : Tutup Modal / Batalkan Dialog")
+        print("========================================================================================\n")
+        return True
+
+    def handle_commands(self, args: str, last_ai_response: str) -> bool:
+        from nexa.commands.registry import GROUPS
+        print("\n=== All Registered Nexa CLI Subcommands ===")
+        for grp, cmds in GROUPS.items():
+            print(f"\n[{grp.upper()} GROUP]")
+            for c in cmds:
+                usage = c.get("usage", f"nexa {grp} {c['name']}").ljust(40)
+                print(f"  {usage} - {c.get('description', '')}")
+        print("\n============================================\n")
         return True
 

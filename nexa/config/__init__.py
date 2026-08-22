@@ -1,10 +1,11 @@
 import os
 import json
 from pathlib import Path
+from nexa.core.utils.path import get_global_nexa_dir
 
 class Config:
     _store = {}
-    _config_file = Path.home() / ".nexa" / "config.json"
+    _config_file = Path(get_global_nexa_dir()) / "config.json"
 
     @classmethod
     def load(cls):

@@ -36,46 +36,6 @@ class ProjectDetector:
             )
 
         # --------------------------------------------------
-        # NEXAPHP
-        # --------------------------------------------------
-        if (
-            (os.path.isdir(os.path.join(root_path, "apps")) and os.path.isdir(os.path.join(root_path, "core")))
-            or (os.path.isdir(os.path.join(root_path, "modules")) and os.path.isdir(os.path.join(root_path, "routes")))
-        ):
-            return result(
-                "nexaphp",
-                "php"
-            )
-
-        # --------------------------------------------------
-        # LARAVEL
-        # --------------------------------------------------
-        if (
-            os.path.exists(os.path.join(root_path, "artisan"))
-            and os.path.exists(os.path.join(root_path, "composer.json"))
-        ):
-            return result(
-                "laravel",
-                "php"
-            )
-
-        # --------------------------------------------------
-        # CODEIGNITER 3
-        # --------------------------------------------------
-        if os.path.exists(
-            os.path.join(
-                root_path,
-                "application",
-                "config",
-                "config.php"
-            )
-        ):
-            return result(
-                "codeigniter3",
-                "php"
-            )
-
-        # --------------------------------------------------
         # DJANGO / DRF
         # --------------------------------------------------
         if os.path.exists(os.path.join(root_path, "manage.py")):
@@ -111,6 +71,52 @@ class ProjectDetector:
             return result(
                 "django",
                 "python"
+            )
+
+        # --------------------------------------------------
+        # NEXAPHP
+        # --------------------------------------------------
+        has_php_indicator = (
+            os.path.exists(os.path.join(root_path, "bin", "nexa"))
+            or os.path.exists(os.path.join(root_path, "composer.json"))
+            or os.path.exists(os.path.join(root_path, "public", "index.php"))
+            or os.path.exists(os.path.join(root_path, "index.php"))
+        )
+        if (
+            (os.path.isdir(os.path.join(root_path, "apps")) and os.path.isdir(os.path.join(root_path, "core")))
+            or (os.path.isdir(os.path.join(root_path, "modules")) and os.path.isdir(os.path.join(root_path, "routes")))
+        ) and has_php_indicator:
+            return result(
+                "nexaphp",
+                "php"
+            )
+
+        # --------------------------------------------------
+        # LARAVEL
+        # --------------------------------------------------
+        if (
+            os.path.exists(os.path.join(root_path, "artisan"))
+            and os.path.exists(os.path.join(root_path, "composer.json"))
+        ):
+            return result(
+                "laravel",
+                "php"
+            )
+
+        # --------------------------------------------------
+        # CODEIGNITER 3
+        # --------------------------------------------------
+        if os.path.exists(
+            os.path.join(
+                root_path,
+                "application",
+                "config",
+                "config.php"
+            )
+        ):
+            return result(
+                "codeigniter3",
+                "php"
             )
 
         # --------------------------------------------------

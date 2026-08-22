@@ -100,8 +100,22 @@ def test_ailoop_registers_tools_in_plan_mode(tmp_path, patch_factory):
     tool_names = {s.get("function", {}).get("name") for s in provider.received_tools}
     assert "file_read" in tool_names
     assert "content_search" in tool_names
-    assert "run_bash_command" in tool_names
-    assert "write_file" in tool_names
+    assert "file_lookup" in tool_names
+
+
+def test_ailoop_handles_intermediate_remark_and_synthesizes_plan(tmp_path, patch_factory):
+    provider = fake_provider([
+        {"content": "Saya melihat ada struktur proyek. Mari saya periksa."},
+        {"content": FINAL_PLAN}
+    ])
+    patch_factory(provider)
+
+    engine = AILoopEngine()
+    report = engine.run_loop(make_context(tmp_path))
+
+    assert report.success is True
+    assert len(report.plan.work_items) == 1
+    assert report.plan.work_items[0].title == "Create auth model"
 
 
 def test_ailoop_llm_error_returns_failed_report(tmp_path, patch_factory):

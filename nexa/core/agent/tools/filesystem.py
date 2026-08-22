@@ -97,3 +97,20 @@ class FilesystemTool:
             return f"Successfully replaced content in {filepath}."
         except Exception as e:
             return f"Error editing file {filepath}: {str(e)}"
+
+    def delete_file(self, filepath: str) -> str:
+        """
+        Deletes a specific temporary scratch file or cleanup target from workspace.
+        """
+        try:
+            target_file = self._resolve_path(filepath)
+            if not os.path.exists(target_file):
+                return f"Error: File '{filepath}' not found."
+            if os.path.isdir(target_file):
+                import shutil
+                shutil.rmtree(target_file)
+                return f"Successfully deleted directory '{filepath}'."
+            os.remove(target_file)
+            return f"Successfully deleted '{filepath}'."
+        except Exception as e:
+            return f"Error deleting file '{filepath}': {str(e)}"

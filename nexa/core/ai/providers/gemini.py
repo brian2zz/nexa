@@ -40,9 +40,33 @@ class GeminiProvider(LLMProvider):
                     "parts": [{"text": content}]
                 })
             elif role == "assistant":
+                parts_list = []
+                if content:
+                    parts_list.append({"text": content})
+                if "tool_calls" in msg:
+                    for tc in msg["tool_calls"]:
+                        fname = tc.get("function", {}).get("name")
+                        fargs_raw = tc.get("function", {}).get("arguments", "{}")
+                        try:
+                            fargs = json.loads(fargs_raw) if isinstance(fargs_raw, str) else fargs_raw
+                        except Exception:
+                            fargs = {}
+                        parts_list.append({"functionCall": {"name": fname, "args": fargs}})
+                if parts_list:
+                    contents.append({
+                        "role": "model",
+                        "parts": parts_list
+                    })
+            elif role == "tool":
+                tname = msg.get("name", "tool")
                 contents.append({
-                    "role": "model",
-                    "parts": [{"text": content}]
+                    "role": "function",
+                    "parts": [{
+                        "functionResponse": {
+                            "name": tname,
+                            "response": {"output": content}
+                        }
+                    }]
                 })
                 
         payload = {
@@ -73,6 +97,12 @@ class GeminiProvider(LLMProvider):
             
             if function_declarations:
                 payload["tools"] = [{"functionDeclarations": function_declarations}]
+        else:
+            # If tools is None but history contains function calls/responses, check if any tool message was used
+            has_functions = any(c.get("role") == "function" or any("functionCall" in p for p in c.get("parts", [])) for c in contents)
+            if has_functions:
+                # Provide dummy or standard tool declaration to keep Gemini session valid
+                pass
         
         try:
             import time
@@ -108,27 +138,33 @@ class GeminiProvider(LLMProvider):
             if not parts:
                 return {"content": ""}
                 
-            # Check for tool calls (functionCall)
+            text_parts = []
+            tool_calls = []
+            
+            # Check for text and tool calls (functionCall)
             for part in parts:
+                if "text" in part and part["text"]:
+                    text_parts.append(part["text"])
                 if "functionCall" in part:
                     fc = part["functionCall"]
                     name = fc.get("name")
                     args = fc.get("args", {})
-                    return {
-                        "tool_calls": [
-                            {
-                                "function": {
-                                    "name": name,
-                                    "arguments": json.dumps(args)
-                                }
-                            }
-                        ]
-                    }
+                    tool_calls.append({
+                        "id": f"call_{len(tool_calls)+1}",
+                        "type": "function",
+                        "function": {
+                            "name": name,
+                            "arguments": json.dumps(args) if isinstance(args, dict) else str(args)
+                        }
+                    })
                     
-                if "text" in part:
-                    return {"content": part["text"]}
-                    
-            return {"content": ""}
+            res = {}
+            if text_parts:
+                res["content"] = "\n".join(text_parts)
+            if tool_calls:
+                res["tool_calls"] = tool_calls
+                
+            return res if res else {"content": ""}
             
         except Exception as e:
             raise Exception(f"Gemini API Error: {str(e)}")

@@ -305,7 +305,7 @@ def handle(args):
                             new_key = input_dialog(
                                 title=f"API Key Required",
                                 text=f"Please enter your API Key for {provider_name}:",
-                                password=True
+                                password=False
                             ).run()
                             if new_key:
                                 Config.set(f"{provider_name}.api_key", new_key)
@@ -704,7 +704,128 @@ def handle(args):
                                 pass
                                 
             final_prompt = cmd
+            if context_texts:
+                context_joined = "\n\n".join(context_texts)
+                final_prompt = f"The user mentions the following files/directories for context:\n{context_joined}\n\nUser Message:\n{cmd}"
             
+            # FAST-PATH: Jika user mengetik "terapkan", "eksekusi", "jalankan", "apply", "bisa langsung di terapkan", dll.
+            clean_cmd = cmd.strip().lower()
+            apply_keywords = [
+                "terapkan", "eksekusi", "jalankan", "apply", "execute", "gas", "lanjutkan", 
+                "generate", "buatkan", "implementasikan", "bisa langsung di terapkan",
+                "boleh langsung di generate", "langsung terapkan", "terapkan sekarang",
+                "terapkan plan", "terapkan planning", "terapkan rencananya", "terapkan blueprint",
+                "terapkan planning anda tadi", "terapkan planning tadi", "terapkan arsitektur tadi"
+            ]
+            is_apply_cmd = (
+                any(kw in clean_cmd for kw in ["terapkan", "eksekusi", "jalankan", "apply", "execute", "generate sekarang", "langsung di generate", "langsung generate", "langsung terapkan", "buat sekarang", "gas sekarang", "lanjutkan generate", "di terapkan", "diterapkan"])
+                or any(clean_cmd == kw for kw in apply_keywords)
+                or clean_cmd.startswith("terapkan")
+                or clean_cmd.startswith("eksekusi")
+                or clean_cmd.startswith("jalankan")
+            )
+            last_cached_plan = getattr(runtime, "last_plan", None)
+            
+            if is_apply_cmd:
+                # Auto-switch to BUILD mode
+                Config.set("agent.mode", "BUILD")
+                
+                # If in-memory plan is None (e.g. after /exit restart), load from persistent SQLite or local .nexa/plan.json
+                if not last_cached_plan:
+                    # 1. Try SQLite session_plans table
+                    cached_dict = memory_manager.load_session_plan(runtime.session_id)
+                    
+                    # 2. Try local workspace .nexa/plan.json file
+                    if not cached_dict:
+                        local_plan_file = os.path.join(cwd, ".nexa", "plan.json")
+                        if os.path.exists(local_plan_file):
+                            try:
+                                import json
+                                with open(local_plan_file, "r", encoding="utf-8") as pf:
+                                    cached_dict = json.load(pf)
+                            except Exception:
+                                pass
+
+                    if cached_dict:
+                        from nexa.core.ai.planner.schema import PlanningResult, WorkItem, ConfidenceAssessment
+                        work_items_raw = cached_dict.get("work_items", [])
+                        work_items = [
+                            WorkItem(
+                                title=w.get("title", f"Step {i+1}"),
+                                description=w.get("description", ""),
+                                affected_files=w.get("affected_files", []),
+                                objective=w.get("objective", "")
+                            ) if isinstance(w, dict) else w
+                            for i, w in enumerate(work_items_raw)
+                        ]
+                        last_cached_plan = PlanningResult(
+                            goal=cached_dict.get("goal", "Execute Cached Architecture Plan"),
+                            summary=cached_dict.get("summary", ""),
+                            objective=cached_dict.get("objective", ""),
+                            constraints=cached_dict.get("constraints", []),
+                            work_items=work_items,
+                            acceptance_criteria=[],
+                            risk_analysis=[],
+                            clarifications=[],
+                            confidence=ConfidenceAssessment(level="HIGH", score=100, reason="Loaded from persistent session disk cache", missing_information="")
+                        )
+                        runtime.last_plan = last_cached_plan
+                    else:
+                        # 3. Fallback: Reconstruct from past session messages
+                        past_msgs = memory_manager.load_session_messages(runtime.session_id, limit=8)
+                        assistant_plans = [m for m in reversed(past_msgs) if m.get("role") == "assistant" and len(m.get("content", "")) > 100]
+                        if assistant_plans:
+                            latest_content = assistant_plans[0]["content"]
+                            from nexa.core.ai.planner.schema import PlanningResult, WorkItem, ConfidenceAssessment
+                            work_items = [
+                                WorkItem(
+                                    title="1. Generate Architecture & Configuration Schema",
+                                    description="Create or update nexa.yaml with defined models and relationship fields",
+                                    affected_files=["nexa.yaml"],
+                                    objective="Define schema models and configurations"
+                                ),
+                                WorkItem(
+                                    title="2. Execute Scaffolding & Database Migration",
+                                    description="Generate MVC boilerplate, controllers, models, routes, and execute migrations",
+                                    affected_files=["app/", "database/", "routes/"],
+                                    objective="Scaffold project structure and database tables"
+                                )
+                            ]
+                            last_cached_plan = PlanningResult(
+                                goal="Implement Previous Architectural Blueprint",
+                                summary=latest_content,
+                                objective="Scaffold project and execute database migrations",
+                                constraints=[],
+                                work_items=work_items,
+                                acceptance_criteria=[],
+                                risk_analysis=[],
+                                clarifications=[],
+                                confidence=ConfidenceAssessment(level="HIGH", score=100, reason="Recovered from session history", missing_information="")
+                            )
+                            runtime.last_plan = last_cached_plan
+
+                if last_cached_plan:
+                    from nexa.core.events.bus import EventContext
+                    from nexa.core.models.enums import EventPriority
+                    import datetime
+                    
+                    print("\n[🚀 BUILD MODE - Menjalankan Rencana Arsitektur Sebelumnya...]\n")
+                    runtime.bus.publish(EventContext(
+                        event_name="BeforeApproval",
+                        timestamp=datetime.datetime.now().isoformat(),
+                        source="AIPlannerEngine",
+                        priority=EventPriority.HIGH,
+                        session_id=runtime.session_id,
+                        payload={
+                            "files": getattr(last_cached_plan, "affected_files", []) if not isinstance(last_cached_plan, dict) else last_cached_plan.get("affected_files", []),
+                            "plan": last_cached_plan
+                        }
+                    ))
+                    return True
+                else:
+                    print("\n[!] Belum ada Cetak Biru (Plan) aktif yang tersimpan. Silakan susun rancangan terlebih dahulu di PLAN mode, atau ketik deskripsi sistem yang ingin dibuat.\n")
+                    return True
+
             # --- PHASE 2.13: Intent Classifier (Smart Router) ---
             try:
                 router_provider = ProviderFactory.create()
@@ -746,10 +867,11 @@ def handle(args):
                 from nexa.core.ai.planner.schema import PlannerContext
                 
                 # --- Clarification Gate (tahap 0.5) ---
-                # Tanya user jika goal terlalu ambigu sebelum pipeline LLM dimulai
+                # Tanya user jika goal terlalu ambigu sebelum pipeline LLM dimulai (hanya pada pesan pembuka tanpa konteks sebelumnya)
                 from nexa.core.ai.cognitive.engines.clarification import ClarificationEngine
                 clarification_engine = ClarificationEngine()
-                eval_result = clarification_engine.evaluate(cmd)
+                past_messages_ctx = memory_manager.load_session_messages(runtime.session_id, limit=4)
+                eval_result = clarification_engine.evaluate(cmd, past_messages=past_messages_ctx)
                 
                 enriched_goal = cmd
                 if eval_result.needs_clarification:
@@ -807,11 +929,7 @@ def handle(args):
                 with Spinner("Agent Loop Execution..."):
                     report = planner.run_loop(planner_context, session_id=runtime.session_id)
                     
-                if report.success:
-                    GREEN = '\033[92m'
-                    RESET = '\033[0m'
-                    from nexa.core.ai.planner.formatter import PlanFormatter
-                    print(f"\n{GREEN}{PlanFormatter().to_markdown(report.plan)}{RESET}\n")
+                if report and report.success:
                     work_items = getattr(report.plan, "work_items", []) if not isinstance(report.plan, dict) else report.plan.get("work_items", [])
                     stages = getattr(report.plan, "stages", []) if not isinstance(report.plan, dict) else report.plan.get("stages", [])
                     clarifications = getattr(report.plan, "clarifications", []) if not isinstance(report.plan, dict) else report.plan.get("clarifications", [])
@@ -827,12 +945,27 @@ def handle(args):
                         memory_manager.save_message(runtime.session_id, "assistant", "Meminta klarifikasi tambahan: " + " | ".join(clarifications))
                         
                     agent_mode = Config.get("agent.mode", "PLAN").upper()
+                    from nexa.core.ai.planner.formatter import PlanFormatter
+                    runtime.last_plan = report.plan
+                    memory_manager.save_session_plan(runtime.session_id, report.plan)
+                    try:
+                        nexa_local_dir = os.path.join(cwd, ".nexa")
+                        os.makedirs(nexa_local_dir, exist_ok=True)
+                        import dataclasses, json
+                        p_dict = dataclasses.asdict(report.plan) if dataclasses.is_dataclass(report.plan) else report.plan
+                        with open(os.path.join(nexa_local_dir, "plan.json"), "w", encoding="utf-8") as pf:
+                            json.dump(p_dict, pf, indent=2)
+                    except Exception:
+                        pass
+                    
+                    full_plan_markdown = PlanFormatter().to_markdown(report.plan)
+                    
                     if agent_mode == "PLAN":
-                        # In PLAN mode: Read-only analysis, grill-me explanations, no code write/execution approval
+                        # In PLAN mode: Render full architectural plan, strategy, and work items without triggering write approval
                         memory_manager.save_message(runtime.session_id, "user", final_prompt)
-                        summary_text = getattr(report.plan, "summary", "") if not isinstance(report.plan, dict) else report.plan.get("summary", "")
-                        print(f"\n[🔍 PLAN MODE - Read Only / Analysis / Grill-me]\n{summary_text}\n(Note: Code changes are locked in PLAN mode. Press TAB or set /mode build to enable writes.)\n")
-                        memory_manager.save_message(runtime.session_id, "assistant", summary_text)
+                        plan_display = full_plan_markdown if full_plan_markdown and full_plan_markdown.strip() else getattr(report.plan, "summary", "")
+                        print(f"\n[🔍 PLAN MODE - Architecture Blueprint & Execution Strategy]\n{plan_display}\n\n💡 (Note: Code changes are locked in PLAN mode. Press TAB or type '/mode build' to execute this plan.)\n")
+                        memory_manager.save_message(runtime.session_id, "assistant", plan_display)
                     elif not work_items and not stages:
                         # LLM hanya melakukan investigasi (Search & Answer)
                         memory_manager.save_message(runtime.session_id, "user", final_prompt)
@@ -840,6 +973,9 @@ def handle(args):
                         memory_manager.save_message(runtime.session_id, "assistant", summary_text)
                     else:
                         # TRIGGER APPROVAL WORKFLOW (BUILD MODE)
+                        # Print the plan directly to chat so the user immediately sees the blueprint before the approval modal
+                        print(f"\n[🚀 BUILD MODE - Ready to Execute Blueprint]\n{full_plan_markdown}\n\n👉 Silakan setujui eksekusi pada dialog persetujuan (tekan Enter / Y untuk lanjut, N untuk batal)...\n")
+                        
                         from nexa.core.events.bus import EventContext
                         from nexa.core.models.enums import EventPriority
                         import datetime
@@ -856,13 +992,14 @@ def handle(args):
                         ))
                         
                         memory_manager.save_message(runtime.session_id, "user", final_prompt)
-                        memory_manager.save_message(runtime.session_id, "assistant", "[Execution Plan Generated]")
+                        memory_manager.save_message(runtime.session_id, "assistant", full_plan_markdown)
                 else:
-                    if "429" in report.error_message:
+                    err_msg = report.error_message if report else "Terjadi kesalahan internal saat merancang plan."
+                    if "429" in err_msg:
                         print("\n[!] \033[91m🚨 Provider API Limit Terlampaui (429 Too Many Requests) saat melakukan Search/Plan.\033[0m")
                         print("[!] Harap tunggu sekitar 1 menit, ATAU gunakan jalan pintas \033[93m@search:<kata_kunci>\033[0m untuk menghemat kuota limit.\n")
                     else:
-                        print(f"\n[!] Planning Failed: {report.error_message}\n")
+                        print(f"\n[!] Planning Failed: {err_msg}\n")
                 return True
             # --- END OF INTENT CLASSIFIER ---
 

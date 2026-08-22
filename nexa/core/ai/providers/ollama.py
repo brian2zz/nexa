@@ -19,6 +19,8 @@ class OllamaProvider(LLMProvider):
                 "temperature": temperature
             }
         }
+        if tools:
+            payload["tools"] = tools
         
         try:
             response = requests.post(url, json=payload)
@@ -30,7 +32,9 @@ class OllamaProvider(LLMProvider):
             data = response.json()
             
             # The structure returned by Ollama /api/chat
-            message_content = data.get("message", {}).get("content", "")
+            msg_dict = data.get("message", {})
+            message_content = msg_dict.get("content", "")
+            tool_calls = msg_dict.get("tool_calls", [])
             
             usage_data = {
                 "prompt_eval_count": data.get("prompt_eval_count", 0),
@@ -39,6 +43,7 @@ class OllamaProvider(LLMProvider):
             
             return {
                 "content": message_content,
+                "tool_calls": tool_calls,
                 "provider": "ollama",
                 "model": self.model,
                 "usage": usage_data

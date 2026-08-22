@@ -1,6 +1,7 @@
 import contextlib
 import threading
 import sys
+import re
 from textual.app import App, ComposeResult
 from textual.command import Provider, Hit
 from functools import partial
@@ -33,7 +34,7 @@ class RedirectedStdout:
             s = s.replace("\r", "")
             
         # Route spinner directly to the current AI message's thought block
-        for c in "|/-\\":
+        for c in ["|", "/", "-", "\\"]:
             if f"[ {c} ]" in s:
                 msg = s.split(f"[ {c} ]", 1)[-1].strip()
                 try:
@@ -43,7 +44,7 @@ class RedirectedStdout:
                 return
                 
         # Catch basic old spinner format just in case
-        if any(f"[{c}]" in s for c in "|/-\\"):
+        if any(f"[{c}]" in s for c in ["|", "/", "-", "\\"]):
             return
             
         if not s:
@@ -51,12 +52,6 @@ class RedirectedStdout:
             
         with self._lock:
             self._buffer += s
-            if "\n" in self._buffer:
-                lines = self._buffer.split("\n")
-                self._buffer = lines[-1]
-                for line in lines[:-1]:
-                    if line:
-                        self._emit(line + "\n")
 
     def _emit(self, line):
         try:
@@ -65,7 +60,12 @@ class RedirectedStdout:
             self._app.print_to_chat(line)
 
     def flush(self):
-        pass
+        with self._lock:
+            if self._buffer:
+                buf = self._buffer.strip()
+                self._buffer = ""
+                if buf:
+                    self._emit(buf)
 
 class StatusBar(Static):
     status_text = reactive("Ready")
@@ -207,9 +207,127 @@ class NexaApp(App):
         ("ctrl+k", "palette", "Command Palette"),
         ("ctrl+e", "open_editor", "Open Editor"),
         ("ctrl+y", "copy_last_response", "Copy Last Response"),
+        ("ctrl+v", "paste_clipboard", "Paste"),
         ("pageup", "scroll_transcript_up", "Scroll Up"),
         ("pagedown", "scroll_transcript_down", "Scroll Down"),
     ]
+
+    def action_paste_clipboard(self):
+        """Pastes text from system clipboard into the prompt input field."""
+        import time
+        now = time.time()
+        last_paste = getattr(self, "_last_paste_time", 0.0)
+        if now - last_paste < 0.35:
+            return
+        self._last_paste_time = now
+
+        try:
+            import subprocess
+            import os
+            clipboard_text = ""
+            
+            # 1. Direct device check for Git Bash / MSYS2 / MINGW64
+            if os.path.exists("/dev/clipboard"):
+                try:
+                    with open("/dev/clipboard", "r", encoding="utf-8", errors="replace") as f:
+                        clipboard_text = f.read()
+                except Exception:
+                    pass
+
+            # 2. Windows Win32 API with 64-bit types
+            if not clipboard_text and sys.platform == "win32":
+                try:
+                    import ctypes
+                    from ctypes import wintypes
+                    CF_UNICODETEXT = 13
+                    user32 = ctypes.windll.user32
+                    kernel32 = ctypes.windll.kernel32
+
+                    user32.OpenClipboard.argtypes = [wintypes.HWND]
+                    user32.OpenClipboard.restype = wintypes.BOOL
+                    user32.GetClipboardData.argtypes = [wintypes.UINT]
+                    user32.GetClipboardData.restype = wintypes.HANDLE
+                    user32.CloseClipboard.argtypes = []
+                    user32.CloseClipboard.restype = wintypes.BOOL
+
+                    kernel32.GlobalLock.argtypes = [wintypes.HGLOBAL]
+                    kernel32.GlobalLock.restype = ctypes.c_void_p
+                    kernel32.GlobalUnlock.argtypes = [wintypes.HGLOBAL]
+                    kernel32.GlobalUnlock.restype = wintypes.BOOL
+
+                    if user32.OpenClipboard(None):
+                        try:
+                            h_data = user32.GetClipboardData(CF_UNICODETEXT)
+                            if h_data:
+                                p_data = kernel32.GlobalLock(h_data)
+                                if p_data:
+                                    try:
+                                        clipboard_text = ctypes.wstring_at(p_data)
+                                    finally:
+                                        kernel32.GlobalUnlock(h_data)
+                        finally:
+                            user32.CloseClipboard()
+                except Exception:
+                    pass
+
+                # 3. Fallback to PowerShell
+                if not clipboard_text:
+                    try:
+                        res = subprocess.run(["powershell.exe", "-NoProfile", "-Command", "Get-Clipboard"], capture_output=True, text=True, timeout=2)
+                        clipboard_text = res.stdout.strip()
+                    except Exception:
+                        pass
+            elif sys.platform == "darwin":
+                try:
+                    res = subprocess.run(["pbpaste"], capture_output=True, text=True, timeout=2)
+                    clipboard_text = res.stdout
+                except Exception:
+                    pass
+            else:
+                for tool in [["xclip", "-selection", "clipboard", "-o"], ["xsel", "--clipboard", "--output"], ["wl-paste"]]:
+                    try:
+                        res = subprocess.run(tool, capture_output=True, text=True, timeout=2)
+                        if res.returncode == 0:
+                            clipboard_text = res.stdout
+                            break
+                    except Exception:
+                        continue
+
+            if clipboard_text:
+                clean_text = clipboard_text.replace("\r\n", " ").replace("\n", " ")
+                
+                # Dynamically locate the target input (active modal or focused widget)
+                target_inp = None
+                focused = self.focused
+                if isinstance(focused, (Input, TextArea)):
+                    target_inp = focused
+                else:
+                    # Check active screen (modal dialog if open, else main screen)
+                    active_inputs = self.screen.query(Input)
+                    if active_inputs:
+                        target_inp = active_inputs.first()
+                    else:
+                        try:
+                            target_inp = self.query_one("#prompt-input", Input)
+                        except Exception:
+                            target_inp = None
+
+                if isinstance(target_inp, Input):
+                    pos = target_inp.cursor_position
+                    target_inp.value = target_inp.value[:pos] + clean_text + target_inp.value[pos:]
+                    target_inp.cursor_position = pos + len(clean_text)
+                    target_inp.focus()
+                    self.set_status(f"Pasted {len(clean_text)} characters.")
+                elif isinstance(target_inp, TextArea):
+                    target_inp.insert(clipboard_text)
+                    target_inp.focus()
+                    self.set_status(f"Pasted {len(clipboard_text)} characters.")
+                else:
+                    self.set_status(f"Pasted {len(clean_text)} characters.")
+            else:
+                self.set_status("Clipboard is empty.")
+        except Exception as e:
+            self.set_status(f"Paste failed: {e}")
     
     def action_copy_last_response(self):
         """Copies the latest AI message to system clipboard."""
@@ -240,6 +358,12 @@ class NexaApp(App):
             event.prevent_default()
             event.stop()
             self.action_toggle_mode()
+
+    def on_click(self, event: events.Click) -> None:
+        if event.button == 3:  # Right-click paste (CMD / Terminal style)
+            event.prevent_default()
+            event.stop()
+            self.action_paste_clipboard()
 
     def action_toggle_mode(self):
         """Toggle between PLAN (Read-Only analysis) and BUILD (Write & Code changes) mode."""
@@ -376,8 +500,9 @@ class NexaApp(App):
         
         # Load and render past conversation messages if resuming a session
         self.load_session_history(self.runtime.session_id)
+        self.safe_invoke(self.query_one("#transcript").scroll_end, animate=False)
         
-        self.set_interval(1.0, self.refresh_status_panel)
+        self.set_interval(5.0, self.refresh_status_panel)
 
     def load_session_history(self, session_id: int):
         """Render past messages from database into the chat transcript."""
@@ -393,6 +518,7 @@ class NexaApp(App):
                         self.print_to_chat(content, role="user")
                     elif role == "assistant":
                         self.print_to_chat(content, role="ai")
+                self.safe_invoke(self.query_one("#transcript").scroll_end, animate=False)
         except Exception:
             pass
 
@@ -420,24 +546,36 @@ class NexaApp(App):
         self.set_status(thought)
         
     def print_to_chat(self, text: str, role: str = "ai"):
+        clean_text = text.strip()
+        if not clean_text:
+            return
+            
         if role == "user":
-            msg = ChatMessage(role="user", text=text)
-            self.query_one("#transcript").mount(msg)
-            self.query_one("#transcript").scroll_end(animate=False)
+            msg = ChatMessage(role="user", text=clean_text)
+            self.safe_invoke(self.query_one("#transcript").mount, msg)
+            self.safe_invoke(self.query_one("#transcript").scroll_end, animate=False)
             self.current_ai_msg = None  # Reset current AI message so a new one is created next
         else:
-            if not self.current_ai_msg:
-                self.current_ai_msg = ChatMessage(role="ai")
-                self.query_one("#transcript").mount(self.current_ai_msg)
-                
-            self.current_ai_msg.append_text(text)
-            self.query_one("#transcript").scroll_end(animate=False)
+            msg = ChatMessage(role="ai", text=clean_text)
+            self.safe_invoke(self.query_one("#transcript").mount, msg)
+            self.safe_invoke(self.query_one("#transcript").scroll_end, animate=False)
+            self.current_ai_msg = None
         
     from nexa.commands.ai.slash_commands import SLASH_METADATA
     SLASH_COMMANDS_META = [(cmd, desc) for cmd, desc, _ in SLASH_METADATA]
 
     def on_input_changed(self, event: Input.Changed):
         val = event.value
+        # Filter raw ANSI mouse escape sequences leaked by legacy Windows conhost (e.g. [;;52;61m...)
+        if re.search(r"\[;*[\d;]+[mMhH]", val) or "\x1b" in val:
+            cleaned = re.sub(r"\[;*[\d;]+[mMhH]", "", val)
+            cleaned = re.sub(r"\x1b\[[0-9;?]*[a-zA-Z]", "", cleaned)
+            cleaned = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", cleaned)
+            if cleaned != val:
+                event.input.value = cleaned
+                event.input.cursor_position = len(cleaned)
+                val = cleaned
+
         sbox = self.query_one("#suggestion-box", OptionList)
         if val.startswith("/"):
             prefix = val.lower()
@@ -480,14 +618,26 @@ class NexaApp(App):
 
     def on_input_submitted(self, event: Input.Submitted):
         sbox = self.query_one("#suggestion-box", OptionList)
-        if sbox.display and sbox.highlighted is not None and len(sbox.options) > 0 and event.value.strip() == "/":
-            # If user typed just "/" and pressed Enter, pick the highlighted suggestion
+        raw_val = event.value.strip()
+        if sbox.display and sbox.highlighted is not None and len(sbox.options) > 0 and raw_val.startswith("/"):
+            # If user typed a prefix like "/sess" or "/" and pressed Enter, pick the highlighted suggestion
             chosen = sbox.get_option_at_index(sbox.highlighted)
             sbox.display = False
             if chosen and chosen.id:
                 event.input.value = ""
-                self.handle_palette_result(chosen.id)
-                return
+                cmd_id = str(chosen.id)
+                needs_args = ["/set-api-key", "/plan", "/facts set", "/facts remove", "/unpin", "/session delete", "/rename", "/models"]
+                if cmd_id in needs_args:
+                    event.input.value = cmd_id + " "
+                    event.input.focus()
+                    event.input.cursor_position = len(event.input.value)
+                    return
+                elif cmd_id == "/editor":
+                    self.action_open_editor()
+                    return
+                else:
+                    self.handle_palette_result(cmd_id)
+                    return
         sbox.display = False
 
         cmd = event.value.strip()
@@ -507,9 +657,9 @@ class NexaApp(App):
             return
             
         needs_args_or_modal = [
-            "/select-provider", "/set-model", "/set-api-key", "/load", "/plan", 
-            "/facts set", "/facts remove", "/unpin", "/session", "/sessions", 
-            "/session list", "/session enter", "/session delete", "/resume", "/continue"
+            "/select-provider", "/set-model", "/model", "/models", "/set-api-key", "/key", "/apikey",
+            "/load", "/plan", "/facts set", "/facts remove", "/unpin", "/session", "/sessions", 
+            "/session list", "/session enter", "/session delete", "/resume", "/continue", "/themes"
         ]
         
         # If user types exactly the command without args, trigger the palette handler (which shows modal or prepopulates input)
@@ -530,7 +680,7 @@ class NexaApp(App):
                                 Config.set(f"{prov}.api_key", key)
                             self.status_bar.status_text = "Processing..."
                             self.run_command(cmd)
-                        self.push_screen(InputModal(f"Enter API Key for {prov}:", password=True), _handle_key)
+                        self.push_screen(InputModal(f"Enter API Key for {prov}:", password=False), _handle_key)
                         return
                         
         # Handle UI-based API key prompting for /set-api-key <provider>
@@ -542,7 +692,7 @@ class NexaApp(App):
                     if key:
                         self.status_bar.status_text = "Processing..."
                         self.run_command(f"{parts[0]} {prov} {key}")
-                self.push_screen(InputModal(f"Enter API Key for {prov}:", password=True), _handle_key_set)
+                self.push_screen(InputModal(f"Enter API Key for {prov}:", password=False), _handle_key_set)
                 return
             
         # Do not echo slash commands to the chat transcript, to keep it clean like Opencode
@@ -554,7 +704,8 @@ class NexaApp(App):
         
     @work(exclusive=True, thread=True)
     def run_command(self, cmd: str):
-        with contextlib.redirect_stdout(RedirectedStdout(self)):
+        stdout_stream = RedirectedStdout(self)
+        with contextlib.redirect_stdout(stdout_stream):
             try:
                 should_continue = self.command_handler(cmd)
                 if not should_continue:
@@ -566,6 +717,7 @@ class NexaApp(App):
                     self.print_to_chat(f"Error: {e}")
             finally:
                 try:
+                    stdout_stream.flush()
                     self.app.call_from_thread(self.set_status, "Ready")
                 except RuntimeError:
                     self.set_status("Ready")
@@ -619,9 +771,26 @@ class NexaApp(App):
             self.status_panel.update_tokens(p, c)
             return
 
+        if ctx.event_name == "AfterExecution":
+            walkthrough = payload.get("walkthrough", "")
+            self.safe_invoke(self.status_panel.add_process, "Execution complete", "ok")
+            if walkthrough:
+                self.safe_invoke(self.print_to_chat, f"\n{walkthrough}\n", "ai")
+            else:
+                self.safe_invoke(self.print_to_chat, "\n[✓] [Transaction Success] Seluruh perubahan kode dan file berhasil diterapkan ke proyek!\n", "ai")
+            self.safe_invoke(self.set_status, "Ready")
+            return
+
+        if ctx.event_name == "ExecutionFailed":
+            err = payload.get("error", "Unknown error")
+            self.safe_invoke(self.status_panel.add_process, "Execution failed", "err")
+            self.safe_invoke(self.print_to_chat, f"\n[!] [Transaction Failed] Gagal menerapkan perubahan: {err}\n", "ai")
+            self.safe_invoke(self.set_status, "Execution Failed")
+            return
+
         if ctx.event_name in ("BeforePlanning", "PlanningFailed",
                               "BeforePatch", "AfterPatch", "PatchFailed",
-                              "BeforeExecution", "AfterExecution", "ExecutionFailed",
+                              "BeforeExecution",
                               "BeforeVerification", "AfterVerification",
                               "BeforeTransformation", "AfterTransformation",
                               "RetryStarted", "RollbackStarted", "RollbackCompleted",
@@ -688,6 +857,7 @@ class NexaApp(App):
             def handle_modal_result(result):
                 if result:
                     action = result.get("action")
+                    is_tool_approval = payload.get("tool_approval", False)
                     if action == "yes":
                         from nexa.core.events.bus import EventContext
                         from nexa.core.models.enums import EventPriority
@@ -698,9 +868,10 @@ class NexaApp(App):
                             source="TUI",
                             priority=EventPriority.HIGH,
                             session_id=ctx.session_id,
-                            payload={"plan": payload.get("plan")}
+                            payload={"plan": payload.get("plan"), "tool_approval": is_tool_approval}
                         ))
-                        self.print_to_chat("\n[Nexa] Execution Approved. Starting transaction...\n")
+                        if not is_tool_approval:
+                            self.print_to_chat("\n[Nexa] Execution Approved. Starting transaction...\n")
                     elif action == "no":
                         from nexa.core.events.bus import EventContext
                         from nexa.core.models.enums import EventPriority
@@ -711,9 +882,10 @@ class NexaApp(App):
                             source="TUI",
                             priority=EventPriority.HIGH,
                             session_id=ctx.session_id,
-                            payload={"plan": payload.get("plan")}
+                            payload={"plan": payload.get("plan"), "tool_approval": is_tool_approval}
                         ))
-                        self.print_to_chat("\n[Nexa] Execution Aborted by user.\n")
+                        if not is_tool_approval:
+                            self.print_to_chat("\n[Nexa] Execution Aborted by user.\n")
                     elif action == "comment":
                         comment = result.get("comment", "")
                         from nexa.core.events.bus import EventContext
@@ -729,6 +901,7 @@ class NexaApp(App):
                         ))
                         self.print_to_chat(f"\n[Nexa] Revision Requested: {comment}\n")
                         
+            from nexa.ui.screens.approval import ApprovalModal
             self.push_screen(ApprovalModal(ctx), handle_modal_result)
             
     def handle_palette_result(self, cmd: str) -> None:
@@ -751,7 +924,7 @@ class NexaApp(App):
                                         Config.set(f"{prov}.api_key", key)
                                     self.status_bar.status_text = "Processing..."
                                     self.run_command(f"{cmd} {prov}")
-                                self.push_screen(InputModal(f"Enter API Key for {prov}:", password=True), _handle_key)
+                                self.push_screen(InputModal(f"Enter API Key for {prov}:", password=False), _handle_key)
                                 return
                         
                         self.status_bar.status_text = "Processing..."
@@ -759,24 +932,42 @@ class NexaApp(App):
                 self.push_screen(GenericSelectionModal("Select AI Provider", opts), _handle_provider)
                 return
 
-            if cmd == "/set-model":
+            if cmd in ["/set-model", "/model", "/models"]:
                 provider = Config.get("provider", "mock")
                 if provider == "ollama":
-                    opts = [("llama3.1", "llama3.1"), ("gemma:2b", "gemma:2b"), ("qwen3:14b", "qwen3:14b"), ("deepseek-coder", "deepseek-coder"), ("phi3", "phi3"), ("mistral", "mistral")]
+                    opts = [("qwen2.5-coder:14b", "qwen2.5-coder:14b"), ("qwen3:14b", "qwen3:14b"), ("llama3.1", "llama3.1"), ("gemma:2b", "gemma:2b"), ("deepseek-coder", "deepseek-coder"), ("phi3", "phi3"), ("mistral", "mistral")]
                 elif provider == "deepseek":
-                    opts = [("deepseek-chat", "deepseek-chat"), ("deepseek-coder", "deepseek-coder")]
+                    opts = [("deepseek-chat", "deepseek-chat (V3)"), ("deepseek-coder", "deepseek-coder (V2.5)"), ("deepseek-reasoner", "deepseek-reasoner (R1)")]
                 elif provider == "groq":
-                    opts = [("llama3-70b-8192", "llama3-70b-8192"), ("mixtral-8x7b-32768", "mixtral-8x7b-32768")]
+                    opts = [("llama-3.1-70b-versatile", "llama-3.1-70b-versatile"), ("llama-3.1-8b-instant", "llama-3.1-8b-instant"), ("mixtral-8x7b-32768", "mixtral-8x7b-32768")]
                 elif provider == "gemini":
-                    opts = [("gemini-1.5-pro-latest", "gemini-1.5-pro"), ("gemini-1.5-flash-latest", "gemini-1.5-flash")]
+                    opts = [("gemini-2.5-flash", "gemini-2.5-flash (Fast & Recommended)"), ("gemini-1.5-pro", "gemini-1.5-pro (Reasoning)"), ("gemini-1.5-flash", "gemini-1.5-flash")]
                 else:
                     opts = [("default", "default")]
 
                 def _handle_model(mod):
                     if mod:
-                        self.status_bar.status_text = "Processing..."
-                        self.run_command(f"{cmd} {mod}")
-                self.push_screen(GenericSelectionModal(f"Select Model for {provider}", opts), _handle_model)
+                        Config.set(f"{provider}.model", mod)
+                        self.status_panel.set_info(
+                            version=NEXA_VERSION,
+                            project_path=self.runtime.cwd,
+                            provider=provider,
+                            model=mod,
+                            session_id=self.runtime.session_id,
+                        )
+                        self.status_bar.status_text = f"Model set to {mod}"
+                        self.run_command(f"/models {mod}")
+                self.push_screen(GenericSelectionModal(f"Select Model for {provider.capitalize()}", opts), _handle_model)
+                return
+
+            if cmd in ["/set-api-key", "/key", "/apikey"]:
+                provider = Config.get("provider", "deepseek")
+                def _handle_key(key):
+                    if key:
+                        Config.set(f"{provider}.api_key", key)
+                        self.print_to_chat(f"\n[✓] API key for {provider} saved successfully.\n", role="ai")
+                        self.set_status("API Key saved.")
+                self.push_screen(InputModal(f"Enter API Key for {provider.capitalize()}:", password=False), _handle_key)
                 return
 
             if cmd == "/themes":
@@ -807,7 +998,7 @@ class NexaApp(App):
                 self.push_screen(SessionSelectionModal(mem, self.runtime.cwd, self.runtime.session_id), _handle_session_choice)
                 return
 
-            needs_args = ["/set-api-key", "/plan", "/facts set", "/facts remove", "/unpin", "/session delete", "/rename", "/models"]
+            needs_args = ["/plan", "/facts set", "/facts remove", "/unpin", "/session delete", "/rename"]
             if cmd in needs_args:
                 inp = self.query_one("#prompt-input")
                 inp.value = cmd + " "

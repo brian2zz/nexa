@@ -32,7 +32,7 @@ def handle(args):
         items = list(d.keys())
         for i, key in enumerate(items):
             is_last = (i == len(items) - 1)
-            prefix = "\-- " if is_last else "|-- "
+            prefix = "\\-- " if is_last else "|-- "
             print(indent + prefix + key)
             
             if d[key]:

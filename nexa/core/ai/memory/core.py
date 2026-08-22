@@ -3,6 +3,7 @@ import sqlite3
 import datetime
 from pathlib import Path
 from typing import List, Dict, Tuple
+from nexa.core.utils.path import get_global_nexa_dir
 
 class ChatMemoryManager:
     """
@@ -11,8 +12,7 @@ class ChatMemoryManager:
     """
     def __init__(self, db_path: str = None):
         if db_path is None:
-            home_dir = str(Path.home())
-            nexa_dir = os.path.join(home_dir, ".nexa")
+            nexa_dir = get_global_nexa_dir()
             os.makedirs(nexa_dir, exist_ok=True)
             db_path = os.path.join(nexa_dir, "chat_memory.db")
             
@@ -41,7 +41,9 @@ class ChatMemoryManager:
             conn.commit()
         
     def _get_conn(self):
-        return sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=30.0)
+        conn.execute("PRAGMA journal_mode=WAL;")
+        return conn
         
     def _init_db(self):
         with self._get_conn() as conn:
@@ -59,6 +61,14 @@ class ChatMemoryManager:
                     role TEXT NOT NULL,
                     content TEXT NOT NULL,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (session_id) REFERENCES sessions (id) ON DELETE CASCADE
+                )
+            ''')
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS session_plans (
+                    session_id INTEGER PRIMARY KEY,
+                    plan_json TEXT NOT NULL,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (session_id) REFERENCES sessions (id) ON DELETE CASCADE
                 )
             ''')
@@ -135,6 +145,48 @@ class ChatMemoryManager:
             )
             return cursor.fetchall()
             
+    def save_session_plan(self, session_id: int, plan_obj_or_dict):
+        """Persists the latest Execution/Planning Result for this session into SQLite."""
+        if not session_id or not plan_obj_or_dict:
+            return
+        import json
+        import dataclasses
+        if dataclasses.is_dataclass(plan_obj_or_dict):
+            data = dataclasses.asdict(plan_obj_or_dict)
+        elif isinstance(plan_obj_or_dict, dict):
+            data = plan_obj_or_dict
+        else:
+            try:
+                data = json.loads(str(plan_obj_or_dict))
+            except Exception:
+                data = {"summary": str(plan_obj_or_dict)}
+                
+        plan_json = json.dumps(data)
+        with self._get_conn() as conn:
+            conn.execute('''
+                INSERT INTO session_plans (session_id, plan_json, updated_at)
+                VALUES (?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(session_id) DO UPDATE SET
+                    plan_json = excluded.plan_json,
+                    updated_at = CURRENT_TIMESTAMP
+            ''', (session_id, plan_json))
+            conn.commit()
+
+    def load_session_plan(self, session_id: int):
+        """Retrieves the cached Execution/Planning Result dictionary for this session."""
+        if not session_id:
+            return None
+        with self._get_conn() as conn:
+            cursor = conn.execute("SELECT plan_json FROM session_plans WHERE session_id = ?", (session_id,))
+            row = cursor.fetchone()
+            if row and row[0]:
+                import json
+                try:
+                    return json.loads(row[0])
+                except Exception:
+                    return None
+        return None
+
     def get_last_message(self, session_id: int) -> dict:
         """Returns the last message dict in the session."""
         with self._get_conn() as conn:
@@ -199,7 +251,9 @@ class Memory:
         self._init_db()
 
     def _get_conn(self):
-        return sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=30.0)
+        conn.execute("PRAGMA journal_mode=WAL;")
+        return conn
 
     def _init_db(self):
         with self._get_conn() as conn:

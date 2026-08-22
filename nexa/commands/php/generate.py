@@ -17,44 +17,76 @@ def handle(args):
         print(f"Could not load {yaml_path}: {e}")
         return
 
+    # Determine target project directory:
+    # If running from a parent directory (e.g. G:\project code) and project.name is set:
+    target_dir = os.getcwd()
+    proj_name = getattr(project, "name", "")
+    if not proj_name and hasattr(project, "project"):
+        proj_name = getattr(project.project, "name", "")
+    if not proj_name and isinstance(project, dict):
+        proj_name = project.get("project", {}).get("name", "")
+
+    is_subproject = False
+    # Check if target_dir is already a Nexa project root
+    is_nexa_root = os.path.exists(os.path.join(target_dir, 'bin', 'nexa')) or os.path.exists(os.path.join(target_dir, 'public'))
+    if not is_nexa_root and proj_name:
+        sub_path = os.path.join(target_dir, proj_name)
+        if not os.path.exists(sub_path):
+            print(f"[*] Inisialisasi struktur proyek NexaPHP di `{sub_path}`...")
+            from nexa.commands.php.new import handle as new_handle
+            new_handle([proj_name, '--frontend=vue'])
+        if os.path.exists(sub_path):
+            target_dir = sub_path
+            is_subproject = True
+
     for app in project.apps:
         app_name = app.name
         if not app_name:
             continue
         
         # Check if module exists, if not create it
-        app_dir = os.path.join(os.getcwd(), 'apps', app_name)
+        app_dir = os.path.join(target_dir, 'apps', app_name)
         if not os.path.exists(app_dir):
-            make_module_handle([app_name])
+            make_module_handle([app_name], cwd=target_dir)
             
         for model in app.models:
             model_name = model.name
             fields = [{'name': f.name, 'type': f.type, 'required': getattr(f, 'required', False)} for f in model.fields]
             
             # Generate Model PHP file
-            generate_model(app_name, model_name, fields)
+            generate_model(app_name, model_name, fields, base_dir=target_dir)
             
             # Generate Controller PHP file
-            generate_controller(app_name, model_name)
+            generate_controller(app_name, model_name, base_dir=target_dir)
             
             # Vue CRUD Frontend is now fully Dynamic via Runtime Reflection!
             
-    print("\n[NexaPHP] Code Generation Complete.")
+    print(f"\n[NexaPHP] Code Generation Complete for project in `{target_dir}`.")
     print("[NexaPHP] Running automatic database migrations (makemigrations & migrate)...")
     
     # Auto Migration
     try:
-        # Assuming the environment is correct and vendor bin is usable
-        # In windows, it might just be `php bin/nexa makemigrations`
-        subprocess.run(['php', 'bin/nexa', 'makemigrations'], check=True)
-        subprocess.run(['php', 'bin/nexa', 'migrate', '--no-interaction'], check=True)
-        print("[OK] Database migrations applied successfully.")
+        bin_nexa = os.path.join(target_dir, 'bin', 'nexa')
+        if os.path.exists(bin_nexa):
+            subprocess.run(['php', 'bin/nexa', 'makemigrations'], cwd=target_dir, check=True)
+            subprocess.run(['php', 'bin/nexa', 'migrate', '--no-interaction'], cwd=target_dir, check=True)
+            print("[OK] Database migrations applied successfully.")
+        else:
+            print("[INFO] Project skeleton created. Run 'php bin/nexa migrate' inside the project directory.")
     except subprocess.CalledProcessError as e:
         print(f"[ERROR] Migration failed. Please check your Doctrine configuration or run manually. Error: {e}")
     except FileNotFoundError:
         print("[ERROR] 'php' command or 'bin/nexa' not found. Cannot run migrations.")
 
-def generate_model(app_name, model_name, fields):
+    # Clean up temporary YAML file from parent workspace if a dedicated subproject folder was created
+    if is_subproject and os.path.exists(yaml_path):
+        try:
+            os.remove(yaml_path)
+            print(f"[*] Membersihkan file konfigurasi sementara `{yaml_path}` agar workspace tetap rapi.")
+        except Exception:
+            pass
+
+def generate_model(app_name, model_name, fields, base_dir: str = "."):
     namespace = f"Apps\\{app_name.capitalize()}\\Models"
     
     properties = []
@@ -111,11 +143,13 @@ class {model_name} extends NexaModel
 {properties_str}
 }}
 """
-    model_path = os.path.join(os.getcwd(), 'apps', app_name, 'Models', f'{model_name}.php')
-    with open(model_path, 'w') as f:
+    model_dir = os.path.join(base_dir, 'apps', app_name, 'Models')
+    os.makedirs(model_dir, exist_ok=True)
+    model_path = os.path.join(model_dir, f'{model_name}.php')
+    with open(model_path, 'w', encoding='utf-8') as f:
         f.write(content)
         
-def generate_controller(app_name, model_name):
+def generate_controller(app_name, model_name, base_dir: str = "."):
     namespace = f"Apps\\{app_name.capitalize()}\\Controllers"
     model_class = f"Apps\\{app_name.capitalize()}\\Models\\{model_name}"
     
@@ -139,8 +173,10 @@ class {model_name}Controller
     }}
 }}
 """
-    ctrl_path = os.path.join(os.getcwd(), 'apps', app_name, 'Controllers', f'{model_name}Controller.php')
-    with open(ctrl_path, 'w') as f:
+    ctrl_dir = os.path.join(base_dir, 'apps', app_name, 'Controllers')
+    os.makedirs(ctrl_dir, exist_ok=True)
+    ctrl_path = os.path.join(ctrl_dir, f'{model_name}Controller.php')
+    with open(ctrl_path, 'w', encoding='utf-8') as f:
         f.write(content)
 
 def generate_vue_crud(app_name, model_name, fields):

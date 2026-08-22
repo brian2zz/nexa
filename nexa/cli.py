@@ -65,6 +65,11 @@ def dispatch(args):
     if command in GROUPS:
         sub_args = args[1:]
         if not sub_args:
+            if command == 'ai':
+                # nexa ai langsung masuk ke interactive shell
+                from nexa.commands.ai import shell
+                shell.handle([])
+                return
             render_group_help(command)
             return
             

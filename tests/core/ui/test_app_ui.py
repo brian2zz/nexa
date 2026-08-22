@@ -99,10 +99,7 @@ async def test_before_approval_yes_publishes_approval_granted():
         app.runtime.bus.publish(event("BeforeApproval", {"plan": {"objective": "test"}}))
         await pilot.pause()
         await pilot.pause()
-        # Tab to focus first button, then press Enter (Yes, Execute)
-        await pilot.press("tab")
-        await pilot.pause()
-        await pilot.press("enter")
+        await pilot.click("#btn-yes")
         await pilot.pause()
         await pilot.pause()
         assert len(granted) == 1

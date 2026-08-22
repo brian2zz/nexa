@@ -24,27 +24,35 @@ class TransformationEngine:
         for stage in plan.get("stages", []):
             for intent in stage.get("intents", []):
                 # Map IntentNode back to legacy dict format for TransformationResult
-                target = intent.get("parameters", {}).get("target") or \
-                         intent.get("parameters", {}).get("path") or \
-                         intent.get("parameters", {}).get("command") or ""
+                params = intent.get("parameters", {})
+                target = params.get("target") or \
+                         params.get("path") or \
+                         params.get("command") or ""
                          
                 steps.append({
                     "action": intent.get("action", ""),
                     "target": target,
-                    "description": intent.get("description", "")
+                    "description": intent.get("description", ""),
+                    "content": params.get("content", "")
                 })
         
         for step in steps:
             action = step.get("action", "").upper()
+            target = step.get("target", "")
+            desc = step.get("description", "")
+            preset_content = step.get("content", "")
+
+            # If preset content is already provided (e.g. extracted YAML for nexa.yaml), use it directly
+            if preset_content:
+                results.append(TransformationResult(step, preset_content))
+                continue
+
             if action in ["CREATE", "MODIFY"]:
                 # Kirim prompt statis ke LLM untuk mendapatkan kodenya saja
-                target = step.get("target", "")
-                desc = step.get("description", "")
+                import os
                 
                 # Baca file asli jika ada
                 original_content = ""
-                import os
-                
                 abs_target = target if os.path.isabs(target) else os.path.join(cwd, target)
                 
                 if os.path.exists(abs_target):
@@ -54,14 +62,15 @@ class TransformationEngine:
                     except Exception:
                         pass
                 
+                # Fallback to CREATE if file does not exist yet on disk
+                if action == "MODIFY" and not original_content:
+                    action = "CREATE"
+                    step["action"] = "CREATE"
+
                 # --- AST Patch Engine: SEARCH/REPLACE Block Format ---
                 # For MODIFY: LLM only returns changed blocks, not full file.
                 # For CREATE: LLM returns full file (no choice here, it's new).
                 if action == "MODIFY":
-                    if not original_content:
-                        # Prevent hallucinated file modifications!
-                        results.append(TransformationResult(step, f"ERROR: Target file {target} does not exist. Cannot modify."))
-                        continue
                         
                     system_msg = (
                         "You are a precise code patch generator.\n"

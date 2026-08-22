@@ -63,7 +63,9 @@ class SessionMemory:
         self._init_table()
 
     def _get_conn(self):
-        return sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=30.0)
+        conn.execute("PRAGMA journal_mode=WAL;")
+        return conn
 
     def _init_table(self):
         with self._get_conn() as conn:

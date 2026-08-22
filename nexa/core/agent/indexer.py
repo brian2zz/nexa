@@ -15,9 +15,14 @@ class WorkspaceIndexer:
         self._scan_done.set() # Set initially in case scan is never called
         self._ensure_db()
 
+    def _get_conn(self):
+        conn = sqlite3.connect(self.db_path, timeout=30.0)
+        conn.execute("PRAGMA journal_mode=WAL;")
+        return conn
+
     def _ensure_db(self):
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_conn() as conn:
             cursor = conn.cursor()
             
             # Phase 5: Drop legacy DB if it doesn't have the new tables

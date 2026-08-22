@@ -1,17 +1,11 @@
 import os
 
-def handle(args):
-    if not args:
-        print('Module name required')
-        return
-
-    module_name = args[0].lower()
+def handle(args, cwd: str = "."):
+    module_name = args[0].lower() if (args and not args[0].startswith('--')) else 'core'
     enterprise = '--enterprise' in args
 
-    apps_dir = os.path.join(os.getcwd(), 'apps')
-    if not os.path.exists(apps_dir):
-        print("Error: 'apps' directory not found. Are you in a NexaPHP project root?")
-        return
+    apps_dir = os.path.join(cwd, 'apps')
+    os.makedirs(apps_dir, exist_ok=True)
 
     module_dir = os.path.join(apps_dir, module_name)
     if os.path.exists(module_dir):

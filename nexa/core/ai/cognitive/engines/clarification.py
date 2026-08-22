@@ -34,29 +34,44 @@ class ClarificationEngine:
         clean = user_goal.strip()
         words = clean.split()
         
+        # JIKA user ingin membuat project baru tapi belum menyebutkan framework spesifik (misal Django, PHP/NexaPHP, Flutter, Laravel, Next.js, FastAPI)
+        # kita HARUS meminta klarifikasi pilihan framework Nexa
+        is_create_project = bool(re.search(r"\b(buatkan|buat|bikin|create|generate|scaffold|setup|start)\b.*\b(project|proyek|aplikasi|backend|frontend|api|sistem)\b", clean, re.IGNORECASE))
+        has_specific_framework = bool(re.search(r"\b(django|drf|nexaphp|php|laravel|flutter|react|vue|nextjs|next\.js|fastapi|codeigniter|express|nestjs|angular|svelte)\b", clean, re.IGNORECASE))
+        if is_create_project and not has_specific_framework:
+            return False
+
         # 1. Prompt panjang/detail (> 25 kata) hampir selalu memiliki spesifikasi cukup
         if len(words) >= 25:
             return True
 
         # 2. Prompt terstruktur (mengandung markdown list, bullet points, headers, atau skema DB)
-        if re.search(r"(###|\d+\.\s+\*\*|(?m)^\s*-\s+|table\s+|schema|column|database)", clean, re.IGNORECASE):
+        if re.search(r"(###|\d+\.\s+\*\*|^\s*-\s+|table\s+|schema|column|database)", clean, re.IGNORECASE | re.MULTILINE):
             return True
 
         # 3. Prompt yang eksplisit menyebutkan file path / namespace / extension
         if re.search(r"(\.php|\.py|\.dart|\.js|\.ts|\.json|\.html|\.css|app/|src/|routes/|models/|controllers/)", clean, re.IGNORECASE):
             return True
 
-        # 4. Prompt pertanyaan investigasi ('dimana', 'bagaimana', 'kenapa', 'cari', 'search', 'find')
-        if re.search(r"\b(dimana|di mana|bagaimana|kenapa|mengapa|cari|search|find|list|show|cek|check|jelaskan|explain)\b", clean, re.IGNORECASE):
+        # 5. Prompt konfirmasi / follow-up eksekusi ('terapkan', 'lanjutkan', 'eksekusi', 'execute', 'gas', 'oke', 'apply', 'proceed', 'planning', 'rencana')
+        if re.search(r"\b(terapkan|lanjutkan|eksekusi|execute|gas|oke|apply|proceed|jalan|jalankan|implement|implementasikan|planning|rencana|tadi)\b", clean, re.IGNORECASE):
             return True
 
         return False
 
-    def evaluate(self, user_goal: str) -> ClarificationResult:
+    def evaluate(self, user_goal: str, past_messages: list = None) -> ClarificationResult:
         """
         Evaluasi apakah user_goal membutuhkan klarifikasi.
         Menganalisis prompt terlebih dahulu sebelum memutuskan bertanya.
         """
+        # Jika ada riwayat percakapan sebelumnya (sedang dalam sesi aktif), jangan tanya klarifikasi ambigu lagi
+        if past_messages and len(past_messages) > 0:
+            return ClarificationResult(
+                needs_clarification=False,
+                questions=[],
+                enriched_goal=user_goal
+            )
+            
         # Jika prompt sudah jelas & detail, jangan tanya apapun
         if self.is_prompt_self_contained(user_goal):
             return ClarificationResult(
@@ -65,10 +80,24 @@ class ClarificationEngine:
                 enriched_goal=user_goal
             )
 
-        # Jika prompt sangat pendek (misal: "bikin tombol", "ubah modul", "tambah fitur"),
-        # tanyakan secara cerdas & kontekstual menggunakan LLM atau rule terarah
         goal_lower = user_goal.lower()
         
+        # Rule Cepat: Jika user minta buat project/aplikasi baru tanpa menyebut framework
+        is_create_project = bool(re.search(r"\b(buatkan|buat|bikin|create|generate|scaffold|setup|start)\b.*\b(project|proyek|aplikasi|backend|frontend|api|sistem)\b", user_goal, re.IGNORECASE))
+        has_specific_framework = bool(re.search(r"\b(django|drf|nexaphp|php|laravel|flutter|react|vue|nextjs|next\.js|fastapi|codeigniter|express|nestjs|angular|svelte)\b", user_goal, re.IGNORECASE))
+        if is_create_project and not has_specific_framework:
+            return ClarificationResult(
+                needs_clarification=True,
+                questions=[
+                    ClarificationQuestion(
+                        key="framework_choice",
+                        question="Framework apa yang ingin Anda gunakan untuk proyek ini?",
+                        hint="Pilihan Nexa Framework: 1) NexaPHP (PHP)  2) Django (Python)  3) Flutter (Dart)  atau ketik nama framework lain (misal: Laravel, Next.js, FastAPI)"
+                    )
+                ],
+                enriched_goal=user_goal
+            )
+
         # Coba evaluasi menggunakan LLM cepat jika tersedia
         try:
             provider = ProviderFactory.create()

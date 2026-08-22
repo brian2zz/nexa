@@ -52,56 +52,42 @@ class PlanFormatter:
         return json.dumps(data, indent=2 if pretty else None)
 
     def to_markdown(self, plan: PlanningResult) -> str:
-        md = f"## {plan.goal}\n\n"
-        md += f"{plan.summary}\n\n"
+        # If summary is rich markdown containing blueprint sections, print it directly
+        if "##" in plan.summary or "```" in plan.summary:
+            md = f"{plan.summary}\n\n"
+        else:
+            md = f"## {plan.goal}\n\n"
+            if plan.summary:
+                md += f"{plan.summary}\n\n"
+            if plan.objective:
+                md += f"### 🎯 Objective\n{plan.objective}\n\n"
         
-        md += f"### 🎯 Objective\n"
-        md += f"{plan.objective}\n\n"
-        
-        md += f"### Metadata\n"
-        md += f"- **Confidence:** {plan.confidence.level} ({plan.confidence.score}%)\n"
-        md += f"  - *Reason:* {plan.confidence.reason}\n"
-        if plan.confidence.missing_information:
-            md += f"  - *Missing Info:* {plan.confidence.missing_information}\n"
-        md += "\n"
-        
-        if plan.constraints:
-            md += "### 🚫 Constraints\n"
-            for c in plan.constraints:
-                md += f"- {c}\n"
+        if plan.work_items:
+            md += "### 📋 Work Items\n"
+            for i, w in enumerate(plan.work_items, 1):
+                md += f"**{i}. {w.title}**\n"
+                if w.objective:
+                    md += f"  - *Objective:* {w.objective}\n"
+                if w.description:
+                    md += f"  - *Description:* {w.description}\n"
+                if w.affected_files:
+                    md += f"  - *Files:* {', '.join(w.affected_files)}\n"
             md += "\n"
-            
-        md += "### 🧩 Affected Components\n"
-        ac = plan.affected_components
-        if ac.models: md += f"- **Models:** {', '.join(ac.models)}\n"
-        if ac.services: md += f"- **Services:** {', '.join(ac.services)}\n"
-        if ac.commands: md += f"- **Commands:** {', '.join(ac.commands)}\n"
-        if ac.tests: md += f"- **Tests:** {', '.join(ac.tests)}\n"
-        if ac.docs: md += f"- **Docs:** {', '.join(ac.docs)}\n"
-        if ac.files: md += f"- **Files:** {', '.join(ac.files)}\n"
-        md += "\n"
-        
-        md += "### 📋 Work Items\n"
-        for i, w in enumerate(plan.work_items, 1):
-            md += f"**{i}. {w.title}**\n"
-            md += f"  - *Objective:* {w.objective}\n"
-            md += f"  - *Description:* {w.description}\n"
-            if w.affected_files:
-                md += f"  - *Files:* {', '.join(w.affected_files)}\n"
-        md += "\n"
         
         if plan.acceptance_criteria:
             md += "### ✅ Acceptance Criteria\n"
             for i, a in enumerate(plan.acceptance_criteria, 1):
                 md += f"- **[{a.priority}]** {a.description}\n"
-                md += f"  *Verification:* {a.verification_method}\n"
+                if a.verification_method:
+                    md += f"  *Verification:* {a.verification_method}\n"
             md += "\n"
             
         if plan.risk_analysis:
-            md += "### [!] Risk Analysis\n\n"
+            md += "### [!] Risk Analysis\n"
             for r in plan.risk_analysis:
                 md += f"- **{r.category}** (Prob: {r.probability}, Impact: {r.impact})\n"
-                md += f"  - *Mitigation:* {r.mitigation}\n"
+                if r.mitigation:
+                    md += f"  - *Mitigation:* {r.mitigation}\n"
             md += "\n"
             
-        return md
+        return md.strip()

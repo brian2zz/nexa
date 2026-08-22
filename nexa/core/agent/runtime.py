@@ -106,6 +106,33 @@ class NexaAgentRuntime:
                     plan = dataclasses.asdict(exec_plan)
                 else:
                     plan = dataclasses.asdict(plan)
+            elif isinstance(plan, dict) and ("work_items" in plan or "summary" in plan) and "stages" not in plan:
+                from nexa.core.ai.planner.schema import PlanningResult, WorkItem, ConfidenceAssessment
+                from nexa.core.ai.planner.builder import PipelineBuilder
+                work_items_raw = plan.get("work_items", [])
+                work_items = [
+                    WorkItem(
+                        title=w.get("title", f"Step {i+1}"),
+                        description=w.get("description", ""),
+                        affected_files=w.get("affected_files", []),
+                        objective=w.get("objective", "")
+                    ) if isinstance(w, dict) else w
+                    for i, w in enumerate(work_items_raw)
+                ]
+                planning_res = PlanningResult(
+                    goal=plan.get("goal", "Execute Architecture Plan"),
+                    summary=plan.get("summary", ""),
+                    objective=plan.get("objective", ""),
+                    constraints=plan.get("constraints", []),
+                    work_items=work_items,
+                    acceptance_criteria=[],
+                    risk_analysis=[],
+                    clarifications=[],
+                    confidence=ConfidenceAssessment(level="HIGH", score=100, reason="Converted from dict plan", missing_information="")
+                )
+                builder = PipelineBuilder()
+                exec_plan = builder.build(planning_res)
+                plan = dataclasses.asdict(exec_plan)
                 
             if not plan:
                 print("[!] Execution dibatalkan: Tidak ada plan yang diterima.")
@@ -114,7 +141,29 @@ class NexaAgentRuntime:
             transaction = ExecutionTransaction(self.cwd, plan)
             success, error_msg = transaction.execute()
             
-            if not success:
+            import datetime
+            from nexa.core.models.enums import EventPriority
+            from nexa.core.events.bus import EventContext
+
+            if success:
+                print("\n[✓] [Transaction Completed] Seluruh perubahan kode dan file berhasil diterapkan ke proyek!")
+                self.bus.publish(EventContext(
+                    event_name="AfterExecution",
+                    timestamp=datetime.datetime.now().isoformat(),
+                    source="ExecutionTransaction",
+                    priority=EventPriority.NORMAL,
+                    session_id=self.session_id,
+                    payload={"success": True, "plan": plan, "walkthrough": error_msg}
+                ))
+            else:
+                self.bus.publish(EventContext(
+                    event_name="ExecutionFailed",
+                    timestamp=datetime.datetime.now().isoformat(),
+                    source="ExecutionTransaction",
+                    priority=EventPriority.HIGH,
+                    session_id=self.session_id,
+                    payload={"error": error_msg, "plan": plan}
+                ))
                 print(f"\n[!] Memicu Auto-Recovery Nexa karena kegagalan eksekusi...")
                 recovery_prompt = (
                     f"The previous Execution Plan failed during transaction with the following error:\n{error_msg}\n\n"
@@ -124,9 +173,6 @@ class NexaAgentRuntime:
                 from nexa.core.ai.agent_loop import AILoopEngine
                 from nexa.core.ai.planner.schema import PlannerContext
                 from nexa.core.utils.spinner import Spinner
-                import datetime
-                from nexa.core.models.enums import EventPriority
-                from nexa.core.events.bus import EventContext
                 
                 # Fetch limited context for recovery
                 planner_context = PlannerContext(
@@ -255,6 +301,18 @@ class NexaAgentRuntime:
             self.session_id = recovered_id
         else:
             self.session_id = self.memory.create_session(self.cwd)
+            
+        # Load persistent plan cache from SQLite or local workspace .nexa/plan.json
+        self.last_plan = self.memory.load_session_plan(self.session_id)
+        if not self.last_plan:
+            local_plan_file = os.path.join(self.cwd, ".nexa", "plan.json")
+            if os.path.exists(local_plan_file):
+                try:
+                    import json
+                    with open(local_plan_file, "r", encoding="utf-8") as pf:
+                        self.last_plan = json.load(pf)
+                except Exception:
+                    pass
             
         print("\n[Nexa Agent Runtime Started]")
         

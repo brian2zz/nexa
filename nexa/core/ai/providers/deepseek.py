@@ -47,6 +47,13 @@ class DeepSeekProvider(LLMProvider):
             message_content = message_dict.get("content", "")
             tool_calls = message_dict.get("tool_calls", [])
             
+            # Clean internal reasoning and DSML tool call tags if present
+            if message_content and "<" in message_content and "DSML" in message_content:
+                import re
+                message_content = re.sub(r"<[^>]*DSML[^>]*>.*?</[^>]*DSML[^>]*>", "", message_content, flags=re.DOTALL)
+                message_content = re.sub(r"<[^>]*DSML[^>]*>", "", message_content)
+                message_content = message_content.strip()
+            
             usage_data = data.get("usage", {})
             
             return {
